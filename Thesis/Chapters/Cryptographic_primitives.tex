@@ -1,0 +1,12 @@
+\chapter{Cryptographic primitives}
+\label{chpr:crypto_primitives}
+In this section we present the cryptographic primitives which are necessary to build a \textit{confidential transaction}.\\
+Prior to this, however, we start with a crash dive into some pillars of Elliptic Curve Cryptography (ECC), the focus being just on what can be useful to follow the incoming narration. We refer, instead, to \cite{Sec} or \cite{UnderstandingCrypto} for a more deep approach.\\
+Elliptic Curve Cryptography is a public-key cryptosystem built on elliptic curves defined over finite fields and, for our purposes, it is the cryptosystem Bitcoin uses to secure the transactions. It is based on the intractability of the Elliptic Curve Discrete Logarithm Problem (ECDLP), namely the infeasibility of computing the discrete logarithm of a random elliptic curve point with respect to a publicly known base point\footnote{At the base of public-key cryptography there is always the intractability of a particular mathematical problem: \begin{itemize} \item RSA public-key schemes: hardness of factoring large integers. \item DLP-based public-key schemes: hardness of solving the discrete logarithm problem. \item ECDLP-based public-key schemes: hardness of solving the generalized discrete logarithm over an elliptic curve. \end{itemize}}. The benefits over its prior alternatives (in the field of public-key or asymmetric cryptography) come from the possibility of providing the same security level with shorter operands, which is in turn a consequence of the problem being harder to solve. Indeed, it is even the latest solution which has come out among the mentioned alternatives.\\
+Referring to the Appendix \ref{app:A} for the definition of finite field (and how to get to it) to avoid making this introduction unintentionally cumbersome, we give instead the definition of elliptic curve.
+\section{Commitment schemes}
+\subsection{Additively homomorphic commitment}
+\subsection{Pedersen commitment}
+\section{Zero-Knowledge Proofs of Knowledge}
+\section{Ring signatures}
+\section{EC Diffie-Hellman key exchange}

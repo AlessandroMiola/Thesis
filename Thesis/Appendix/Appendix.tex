@@ -1,0 +1,101 @@
+\chapter{Abstract algebra fundamentals}
+\label{app:A}
+This appendix is aimed at providing some fundamental notions of  algebra of sets and number theory at the basis of the considered public-key cryptosystem. Definitions are mainly taken from \cite{UnderstandingCrypto}.\\
+We start from the definition of a \textit{group}.
+\begin{mydef} A group is a set of elements $G$ together with an operation $\circ$ which combines two elements of $G$. A group  satisfies the following properties:
+	\begin{itemize}
+		\item The group operation $\circ$ is closed: $\forall a, b \in G \rightarrow a \circ b \in G$.
+		\item The group operation $\circ$ is associative: $\forall a, b, c \in G  \rightarrow (a \circ b) \circ c = a \circ (b \circ c)$.
+		\item Identity: $\exists e \in G \ | \ \forall a \in G, \ e \circ a = a \circ e = a$.
+		\item Invertibility: $\forall a \in G, \ \exists b \in G \ | \ a \circ b = b \circ a = e$. This element is called inverse of a and it is commonly denoted either as $a^{-1}$ or $-a$, depending on the notation (multiplicative or additive).
+		\item A group G is abelian (or commutative) if, furthermore, $\forall a, b \in G \rightarrow a \circ b = b \circ a$.
+	\end{itemize}
+\end{mydef}
+\label{defA1}
+\noindent
+Depending on whether we consider additive or multiplicative notation, the operation $\circ$ stands respectively for addition or multiplication.
+\begin{myrem} The group operation $\circ$ is called group law of G.
+\end{myrem}
+\begin{myrem} The number of elements in a group G is called group order (or cardinality). We denote it by $|G|$.
+\end{myrem}
+\begin{myexample}
+$(\mathbb{Z},+)$ is a group. Particularly, it forms an abelian group where $e = 0$ is the identity element, $b = -a$ is the inverse of an element $a \in \mathbb{Z}$.
+\end{myexample}
+\begin{myexample}
+$(\mathbb{Z} \backslash \{0\},\cdot)$ is \textbf{not} a group. Particularly, $\nexists b = a^{-1}$ for an element $a \in \mathbb{Z}$ with the exception of the elements -1 and 1.
+\end{myexample}
+\begin{myexample}
+$(\mathbb{Z}_m,+)$, where $\mathbb{Z}_m$ = $\{0,1,\dots,m-1\}$ and the operation is the addition modulo m, form a group (of order $m$) with the identity element $e = 0$. Every element $a$ has an inverse $b=-a$ such that $a + (-a) = 0$ mod m.
+\end{myexample}
+\begin{myrem}
+This last example points out a straightforward, yet important, fact. By definition, the inverse must belong to the group $\rightarrow$ $b=m-a$ is the inverse of any group element $a$.
+\end{myrem}
+\begin{myrem}
+Observe that $(\mathbb{Z}_m,\cdot)$ is \textbf{not} a group. Most elements $a$ do not have an inverse such that $aa^{-1} = 1$ mod m.
+\end{myrem}
+\noindent
+Actually, in cryptography it turns out that the groups playing a significant role are those with a finite number of elements. We briefly focus now on one of them, $(\mathbb{Z}_m^{*},\cdot)$, the multiplicative group of $\mathbb{Z}_m$.\\
+Let's start with some definitions.
+\begin{mydef}
+    Given $x,y \in \mathbb{Z}$, $gcd(x,y)$ is the greatest common divisor of $x,y$.
+\end{mydef}
+\label{defA2}
+\begin{myrem}
+    If $gcd(x,y)=1$, we say that $x,y$ are relatively prime.
+\end{myrem}
+\begin{mylemma}
+    $\forall x,y \in \mathbb{Z}$, $\exists a,b \in \mathbb{Z}$ s.t. $ax+by=gcd(x,y)$. a,b, can be efficiently found through the extended Euclidean algorithm (see \cite{UnderstandingCrypto} for details).
+\end{mylemma}
+\noindent
+Given the definition of inverse element of a group seen above, we introduce the following:
+\begin{mylemma}
+    $x$ in $(\mathbb{Z}_m,\cdot)$ has an inverse $\longleftrightarrow$ $gcd(x,m)=1$. 
+\end{mylemma}
+\begin{proof} ($\longrightarrow$) Suppose by contradiction that $gcd(x,m)>1$. Then, $\forall a: gcd(ax,m)>1$ $\rightarrow$ $ax \neq 1$ in $\mathbb{Z}_m$, which (according to \ref{defA1}) contradicts the hypothesis.\\
+($\longleftarrow$) $\exists a,b$: $ax + \cancel{bm} = 1$ ($bm = 0$ mod $m$, thus $bm=0$ in $\mathbb{Z}_m$) $\rightarrow$ $ax=1$ in $\mathbb{Z}_m$ $\rightarrow$ $x$ is invertible in $\mathbb{Z}_m$, the inverse being $x^{-1}=a$.
+\end{proof}
+\begin{myprop}
+    $(\mathbb{Z}_m^{*},\cdot)$ = $\{x \in \mathbb{Z}_m: gcd(x,m)=1\}$ forms an abelian group. The identity element is $e=1$.
+\end{myprop}
+\begin{proof}
+    The proof is straightforward and comes from the verification of the group properties described above.
+\end{proof}
+\begin{myrem}
+    In particular, if $m$ is prime, then $\mathbb{Z}_m^{*}$ = $\mathbb{Z}_m \backslash \{0\}$.
+\end{myrem}
+\noindent 
+Next step before coming to field structures is to introduce the notion of \textit{cyclic group}, necessary in turn to introduce the Generalized Discrete Logarithm Problem, which is at the basis of ECC.\\
+Let's first start with some preliminary definitions.
+\begin{mydef}
+    A group $(G,\circ)$ is finite if it has a finite number of elements. 
+\end{mydef}
+\begin{mydef}
+    The order $ord(x)$ of an element $x$ of a group $(G,\circ)$ is the smallest positive integer $k$ such that $x^k=1$, $e=1$ being the identity element of G.
+\end{mydef}
+\begin{myexample}
+    In $(\mathbb{Z}_7^{*},\cdot)$, $ord(x=2)=3$. Indeed $2^1$ = $2$ mod $7$, $2^2$ = $4$ mod $7$, $2^3$ = $1$ mod $7$.\\
+    It is even interesting to see that by keeping on computing powers of $x=2$, those will keep on running through the above sequence. Indeed, $2^4$ = $2$ mod $7$, $2^5$ = $4$ mod $7$, $2^6$ = $1$ mod $7$.
+\end{myexample}
+\noindent
+Based on this, 
+\begin{mydef}
+    A group $(G,\circ)$ which contains an element $x$ with maximum order $ord(x)$ = $|G|$ is said to be cyclic. Elements with maximum order are called generators and are denoted by $g$.
+\end{mydef}
+\begin{myrem}
+    The reason for which $g$ is called generator is that it generates (or spans) the entire group (all the group elements can be recovered by raising $g$ to the powers $1,\dots,|G|$). In the previous example, $g=3$ is a generator.
+\end{myrem}
+\begin{myrem}
+    It is also clear that not every element is a generator of the cyclic group ($x=2$ being an example).
+\end{myrem}
+\noindent
+Then it holds the following fundamental theorem, by Euler.
+\begin{mytheorem}
+    For every prime $n$, $(\mathbb{Z}_n^{*},\cdot)$ is an abelian finite cyclic group.
+\end{mytheorem}
+\noindent
+The last needed definition concerning group is the one of \textit{subgroups}, basically non-empty subsets $H$ of a (cyclic) group $G$ being themselves groups.
+\begin{mytheorem}
+    Let $(G,\circ)$ be a cyclic group. Then every element $x \in G$ with $ord(x)=s$ is the generator of a cyclic subgroup with $s$ elements.
+\end{mytheorem}
+\noindent
+We can finally introduce the definition of \textit{field}.
