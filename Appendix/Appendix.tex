@@ -83,6 +83,7 @@ Based on this,
     A group $(\mathbb{G},\circ)$ which contains an element $x$ with maximum order $ord(x)$ = $|\mathbb{G}|$ is said to be cyclic. Elements with maximum order are called generators and are denoted by $g$.
 \end{mydef}
 \begin{myrem}
+\label{generator_spanning}
     The reason for which $g$ is called generator is that it generates (or spans) the entire group (all the group elements can be recovered by raising $g$ to the powers $1,\dots,|\mathbb{G}|$). In the previous example, $g=3$ is a generator.
 \end{myrem}
 \begin{myrem}
@@ -91,7 +92,7 @@ Based on this,
 \noindent
 Then we introduce three more theorems defining fundamental properties of cyclic groups. The first one is the following, by Euler.
 \begin{mytheorem}
-    For every prime $n$, $(\mathbb{Z}_n^{*},\cdot)$ is an abelian finite cyclic group.
+    For every prime $p$, $(\mathbb{Z}_p^{*},\cdot)$ is an abelian finite cyclic group.
 \end{mytheorem}
 \begin{mytheorem}
 \label{thm::order_divides_cardinality}
@@ -120,7 +121,7 @@ We can eventually introduce the definition of \textit{field}.
     A field $K\neq0$ is a set of elements with the following properties:
     \begin{itemize}
         \item $(K,+)$ is an abelian (additive) group, with identity element $e=0$.
-        \item $(K\backslash\{0\},\cdot)$ is an abelian (multiplicative), with identity element $e=1$.
+        \item $(K\backslash\{0\},\cdot)$ is an abelian (multiplicative) group, with identity element $e=1$.
         \item The distributivity law holds, i.e., $\forall$ $a,b,c \in K$: $a \cdot (b+c)$ = $(a\cdot b) + (a\cdot c)$.
     \end{itemize}
 \end{mydef}
@@ -128,7 +129,51 @@ We can eventually introduce the definition of \textit{field}.
     The set $(\mathbb{R},+,\cdot)$ of real numbers is a field with identity element $e=0$ for the additive group and identity element $e=1$ for the multiplicative group. $\forall a$ $\exists b = -a$ additive inverse, $\forall a\neq 0$ $\exists b =\frac{1}{a}$ multiplicative inverse.
 \end{myexample}
 \begin{myexample}
-    
+\label{prime_finite_field}
+    For every prime $p$, the set $(\mathbb{Z}_p,+,\cdot)$ is a field.
 \end{myexample}
+\begin{myrem}
+    \ref{prime_finite_field} shouldn't be much of a surprise, given the premises. Indeed, we have already seen $(\mathbb{Z}_p,+)$ is an additive group; $(\mathbb{Z}_p\backslash\{0\},\cdot)$ in principle ($p$ generic) wouldn't be a multiplicative group, but $p$ prime implies $(\mathbb{Z}_p\backslash\{0\},\cdot)$ $\equiv$ $(\mathbb{Z}_p^{*},\cdot)$, which we have already seen being a multiplicative group.
+\end{myrem}
+\begin{myrem}
+    \ref{prime_finite_field} is also the most common representative of prime finite field, which cryptography is most concerned on.
+\end{myrem}
+\subsection{Finite fields}
+\begin{mydef}
+    A finite field is a field with a finite number of elements (also called Galois field).
+\end{mydef}
+\begin{mytheorem}
+    A finite field of order $q$, denoted as $\mathbb{F}_q$, only exists if $q = p^k$, $p$ prime number, $k$ positive integer.
+\end{mytheorem}
+\noindent
+In particular, prime finite fields (\ref{prime_finite_field} being the most representative example) takes a fundamental role in dealing with the DLP, argument of the next section.
 \section{Discrete Logarithm Problem}
+\label{DLP}
+We conclude the appendix with the Discrete Logarithm Problem, in its various formulations.\\
+Consider the prime finite field $\mathbb{F}_p$ = $(\mathbb{Z}_p,+,\cdot)$, $p$ prime.\\
+It turns out that the DLP can be directly explained through cyclic groups (from which our previous concern in their description). We present it in its multiplicative form (thus DLP over $(\mathbb{Z}_p^{*},\cdot)$), the additive one being simple to recover from.
+\begin{mydef}
+    Given the finite cyclic group $(\mathbb{Z}_p^{*},\cdot)$, a generator $g \in \mathbb{Z}_p^{*}$ and another element $y \in \mathbb{Z}_p^{*}$, the DLP is the problem of determining the integer $1 \leq k \leq p-1$ such that $g^k = y \mod{p}$. 
+\end{mydef}
+\begin{myrem}
+    Being $g$ a generator of a finite cyclic group and $y$ another group element, $k$ must necessarily exist due to \ref{generator_spanning}.
+\end{myrem}
+\begin{myrem}
+    $k = \log_g{y} \mod{p}$, from which its name.
+\end{myrem}
+\begin{myrem}
+    The obvious transposition to additive groups: determining $k$ such that $kg=y$.
+\end{myrem}
+\noindent
+Here it comes, instead, the reason of the introduction of subgroups.
+\begin{myrem}
+    It is often desirable to have the DLP in groups where $|\mathbb{G}|$ is prime to prevent the so called Pohlig-Hellman attack\footnote{For security consideration we refer to \cite{UnderstandingCrypto}; the only thing we point out is that the cited one is not the only possible attack (\textit{brute-force search}, \textit{Baby-step giant-step}, \textit{Pollard $\rho$ method} being other possibilities) and that the best known algorithm runs in time $O(|\mathbb{G}|^{\frac{1}{2}})$.}; being $|\mathbb{Z}_p^{*}|=p-1$ (not prime), subgroups of  $\mathbb{Z}_p^{*}$ with $|\cdot|=n$, $n < p$, $n$ prime are usually exploited.
+\end{myrem}
 \subsection{Generalized Discrete Logarithm Problem}
+It is possible to generalize and present the DLP over an arbitrary cyclic group, which is at the basis of ECC.
+\begin{mydef}
+    Given a finite cyclic group $(\mathbb{G},\circ)$ such that $|\mathbb{G}| = n$, a generator $g \in \mathbb{G}$ and $y \in \mathbb{G}$, the GDLP is the problem of determining the integer $k$, $1 \leq k \leq n$ such that $y = \underbrace{g \circ g \circ \dots \circ g}_{k \quad times}$ = $g^k$.
+\end{mydef}
+\begin{myrem}
+    The same considerations presented before hold here.
+\end{myrem}
