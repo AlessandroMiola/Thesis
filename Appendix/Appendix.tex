@@ -3,7 +3,9 @@
 This appendix is aimed at providing some fundamental notions of  algebra of sets and number theory at the basis of the considered public-key cryptosystem. Definitions are mainly taken from \cite{UnderstandingCrypto} and adapted when needed.
 \section{Groups}
 We start from the definition of a \textit{group}.
-\begin{mydef} A group is a set of elements $\mathbb{G}$ together with an operation $\circ$ which combines two elements of $\mathbb{G}$. A group  satisfies the following properties:
+\begin{mydef}
+\label{defA1}
+A group is a set of elements $\mathbb{G}$ together with an operation $\circ$ which combines two elements of $\mathbb{G}$. A group  satisfies the following properties:
 	\begin{itemize}
 		\item The group operation $\circ$ is closed: $\forall a, b \in \mathbb{G} \rightarrow a \circ b \in \mathbb{G}$.
 		\item The group operation $\circ$ is associative: $\forall a, b, c \in \mathbb{G}  \rightarrow (a \circ b) \circ c = a \circ (b \circ c)$.
@@ -12,7 +14,6 @@ We start from the definition of a \textit{group}.
 		\item A group $\mathbb{G}$ is abelian (or commutative) if, furthermore, $\forall a, b \in \mathbb{G} \rightarrow a \circ b = b \circ a$.
 	\end{itemize}
 \end{mydef}
-\label{defA1}
 \noindent
 Depending on whether we consider additive or multiplicative notation, the operation $\circ$ stands respectively for addition or multiplication.
 \begin{myrem} The group operation $\circ$ is called group law of $\mathbb{G}$.
@@ -52,7 +53,7 @@ Given the definition of inverse element of a group seen above, we introduce the 
 \begin{mylemma}
     $x$ in $(\mathbb{Z}_m,\cdot)$ has an inverse $\longleftrightarrow$ $gcd(x,m)=1$. 
 \end{mylemma}
-\begin{proof} ($\longrightarrow$) Suppose by contradiction that $gcd(x,m)>1$. Then, $\forall a: gcd(ax,m)>1$ $\rightarrow$ $ax \neq 1$ in $\mathbb{Z}_m$, which (according to \ref{defA1}) contradicts the hypothesis.\\
+\begin{proof} ($\longrightarrow$) Suppose by contradiction that $gcd(x,m)>1$. Then, $\forall a: gcd(ax,m)>1$ $\rightarrow$ $ax \neq 1$ in $\mathbb{Z}_m$, which (according to Definition \ref{defA1}) contradicts the hypothesis.\\
 ($\longleftarrow$) $\exists a,b$: $ax + \cancel{bm} = 1$ ($bm = 0$ mod $m$, thus $bm=0$ in $\mathbb{Z}_m$) $\rightarrow$ $ax=1$ in $\mathbb{Z}_m$ $\rightarrow$ $x$ is invertible in $\mathbb{Z}_m$, the inverse being $x^{-1}=a$.
 \end{proof}
 \begin{myprop}
@@ -109,7 +110,7 @@ Consequently, in a cyclic group there exist only element orders dividing exactly
     Let $\mathbb{G}$ be a finite cyclic group. Then, if $|\mathbb{G}|$ is prime, all elements $x \neq 1 \in \mathbb{G}$ are generators.
 \end{mytheorem}
 \begin{proof}
-    By \ref{thm::order_divides_cardinality}, being the group cardinality a prime, the only possible element orders are $ord(x)=1$ or $ord(x)=|\mathbb{G}|$. As $ord(x)=1$ $\longleftrightarrow$ $x=1$, then any $x=g \neq 1 \in \mathbb{G}$ is a generator.
+    By Theorem \ref{thm::order_divides_cardinality}, being the group cardinality a prime, the only possible element orders are $ord(x)=1$ or $ord(x)=|\mathbb{G}|$. As $ord(x)=1$ $\longleftrightarrow$ $x=1$, then any $x=g \neq 1 \in \mathbb{G}$ is a generator.
 \end{proof}
 \noindent
 The last needed definition concerning group is the one of \textit{subgroups}, basically non-empty subsets $\mathbb{H}$ of a (cyclic) group $\mathbb{G}$ being themselves groups.
@@ -134,10 +135,10 @@ We can eventually introduce the definition of \textit{field}.
     For every prime $p$, the set $(\mathbb{Z}_p,+,\cdot)$ is a field.
 \end{myexample}
 \begin{myrem}
-    \ref{prime_finite_field} shouldn't be much of a surprise, given the premises. Indeed, we have already seen $(\mathbb{Z}_p,+)$ is an additive group; $(\mathbb{Z}_p\backslash\{0\},\cdot)$ in principle ($p$ generic) wouldn't be a multiplicative group, but $p$ prime implies $(\mathbb{Z}_p\backslash\{0\},\cdot)$ $\equiv$ $(\mathbb{Z}_p^{*},\cdot)$, which we have already seen being a multiplicative group.
+    Example \ref{prime_finite_field} shouldn't be much of a surprise, given the premises. Indeed, we have already seen $(\mathbb{Z}_p,+)$ is an additive group; $(\mathbb{Z}_p\backslash\{0\},\cdot)$ in principle ($p$ generic) wouldn't be a multiplicative group, but $p$ prime implies $(\mathbb{Z}_p\backslash\{0\},\cdot)$ $\equiv$ $(\mathbb{Z}_p^{*},\cdot)$, which we have already seen being a multiplicative group.
 \end{myrem}
 \begin{myrem}
-    \ref{prime_finite_field} is also the most common representative of prime finite field, which cryptography is most concerned on.
+    Example \ref{prime_finite_field} is also the most common representative of prime finite field, which cryptography is most concerned on.
 \end{myrem}
 \subsection{Finite fields}
 \begin{mydef}
@@ -147,7 +148,7 @@ We can eventually introduce the definition of \textit{field}.
     A finite field of order $q$, denoted as $\mathbb{F}_q$, only exists if $q = p^k$, $p$ prime number, $k$ positive integer.
 \end{mytheorem}
 \noindent
-In particular, prime finite fields (\ref{prime_finite_field} being the most representative example) takes a fundamental role in dealing with the DLP, argument of the next section.
+In particular, prime finite fields (Example \ref{prime_finite_field} being the most representative example) takes a fundamental role in dealing with the DLP, argument of the next section.
 \section{Discrete Logarithm Problem}
 \label{DLP}
 We conclude the appendix with the Discrete Logarithm Problem, in its various formulations.\\
@@ -157,7 +158,7 @@ It turns out that the DLP can be directly explained through cyclic groups (from 
     Given the finite cyclic group $(\mathbb{Z}_p^{*},\cdot)$, a generator $g \in \mathbb{Z}_p^{*}$ and another element $y \in \mathbb{Z}_p^{*}$, the DLP is the problem of determining the integer $1 \leq k \leq p-1$ such that $g^k = y \mod{p}$. 
 \end{mydef}
 \begin{myrem}
-    Being $g$ a generator of a finite cyclic group and $y$ another group element, $k$ must necessarily exist due to \ref{generator_spanning}.
+    Being $g$ a generator of a finite cyclic group and $y$ another group element, $k$ must necessarily exist due to Remark \ref{generator_spanning}.
 \end{myrem}
 \begin{myrem}
     $k = \log_g{y} \mod{p}$, from which its name.
@@ -168,7 +169,7 @@ It turns out that the DLP can be directly explained through cyclic groups (from 
 \noindent
 Here it comes, instead, the reason of the introduction of subgroups.
 \begin{myrem}
-    It is often desirable to have the DLP in groups where $|\mathbb{G}|$ is prime to prevent the so called Pohlig-Hellman attack\footnote{For security consideration we refer to \cite{UnderstandingCrypto}; the only thing we point out is that the cited one is not the only possible attack (\textit{brute-force search}, \textit{Baby-step giant-step}, \textit{Pollard $\rho$ method} being other possibilities) and that the best known algorithm runs in time $O(|\mathbb{G}|^{\frac{1}{2}})$.}; being $|\mathbb{Z}_p^{*}|=p-1$ (not prime), subgroups of  $\mathbb{Z}_p^{*}$ with $|\cdot|=n$, $n < p$, $n$ prime are usually exploited.
+    It is often desirable to have the DLP in groups where $|\mathbb{G}|$ is prime to prevent the so called Pohlig-Hellman attack\footnote{For security considerations we refer to \cite{UnderstandingCrypto}; the only thing we point out is that the cited one is not the only possible attack (\textit{brute-force search}, \textit{Baby-step giant-step}, \textit{Pollard $\rho$ method} being other possibilities) and that the best known algorithm runs in time $O(|\mathbb{G}|^{\frac{1}{2}})$.}; being $|\mathbb{Z}_p^{*}|=p-1$ (not prime), subgroups of  $\mathbb{Z}_p^{*}$ with $|\cdot|=n$, $n < p$, $n$ prime are usually exploited.
 \end{myrem}
 \subsection{Generalized Discrete Logarithm Problem}
 It is possible to generalize and present the DLP over an arbitrary cyclic group, which is at the basis of ECC.

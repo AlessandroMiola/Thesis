@@ -1,0 +1,393 @@
+\chapter{Confidential transactions}
+\label{chpr:CTs}
+The aim of this section is to construct a confidential transaction step by step. In particular we will see how the cryptographic primitives presented in the previous chapter are deployed (or specialized) in confidential transactions.\\
+For this reason we will initially see how a confidential transaction achieves value privacy by encrypting the output amounts through Pedersen commitments and we will describe all of the consequences of homomorphic encryption with an impact on the way confidential transactions are built; then, we will add the range proofs to the scheme, which prevent a malicious transaction's creator to exploit modular arithmetic (and encryption of values) to build invalid transactions in an undetectable way. Moreover these proofs are provided in Zero-Knowledge through a particular variant of ring signature. Eventually we will enter in the details of the communication between transaction's sender and receiver. Indeed encryption would prevent even the receiver to know the amount associated to each output; thus, some sort of communication is necessary.
+
+\section{Transaction amount encryption}
+Confidential transactions achieve their goal of obscuring output amounts by replacing output amounts in the clear (Bitcoin-like) with Pedersen commitments to the output amount. This results in substituting the 8-byte integer representing the output amount in a standard Bitcoin transaction with a 33-byte commitment to the amount. Indeed, recalling Definition \ref{Pedersen_commitment}, Pedersen commitments are nothing else than elliptic curve points (the co-domain of the mapping being the elliptic curve group $\mathbb{G}$) which in compressed form can be represented by a 33-byte sequence.\\
+On the basis of the previous description of the cryptographic primitive in section \ref{subsec_PC}, this section will be devoted first of all to its transposition in confidential transactions.\\
+As an example, we start describing a step-by-step possible strategy to obtain safe encryption of the amounts which culminates in having amounts coded by Pedersen commitments. At each step, we will present pros and cons of the considered solution.\\
+Consider a standard transaction with 2 inputs and 2 outputs. The balance of such a transaction in Bitcoin would be represented by the following equation: $v_{i1} + v_{i2} = v_{o1} + v_{o2}$ (where $i$ stands for input, $o$ stands for output). While allowing easy verification that no money has been created out of thin air, such a representation lacks of confidentiality. Next step could be embedding $vH$ in a transaction rather than $v$ only: $v_{i1}H + v_{i2}H = v_{o1}H + v_{o2}H$. Indeed, being $H$ an elliptic curve generator (refer to section \ref{subsec_PC} for details) the equality holds and verification is still easily guaranteed to work. However, this solution suffers from the number of values $v$ being finite and thus from the possibility of an attacker trying to guess the data underlying the commitment. Moreover, observe that knowing $v_iH$ would unmask all of the outputs of value $v_i$ across the blockchain. The final solution to these issues consists in keeping the skeleton of the previous proposal, but blinding the committed value via a random factor, thus effectively coding the amounts through Pedersen commitments: $(r_{i1}G + v_{i1}H) + (r_{i2}G + v_{i2}H) = (r_{o1}G + v_{o1}H) + (r_{o2}G + v_{o2}H)$. In this case the verification of the balance of the equation is guaranteed by the additively homomorphic property stated above, its perfectly hiding nature preserves the confidentiality.\\
+The interpretation of the parameters $r$ and $v$ should be now immediate: $r$ represents the secret random \textit{blinding factor}, $v$ represents the committed amount. Thus, in confidential transactions the Pedersen commitment commits to an amount $v$ and requires a random blinding factor $r$ (a private key basically) to obtain the security property of perfect hiding. Each committed amount $v$ and blinding factor $r$ (one per input/output) has to be known only to participants in the transaction; the whole commitment $C$ has to be public instead.
+
+\subsection{NUMS generators construction}
+Pedersen commitments are built through nothing-up-my-sleeves (NUMS) generators. On the one hand, generator $G$ has not a clear origin (it is not NUMS in principle); on the other, the Bitcoin protocol specification does not define a second generator associated to the curve.\footnote{The elliptic curve Bitcoin uses is the so called secp256k1, which is a 256-bit elliptic curve over the finite field $\mathbb{F}_p$ and the specification defines the tuple of parameters $T$ = $(p, a, b, G, n, h)$ among which generator $G$, but not generator $H$.}\\
+The problem becomes to construct one satisfying Definition \ref{NUMS}. After all, the consequences of having a second generator $H$ not properly built would be catastrophic, because it would make possible to open the commitment to a different value (possibly inflating the currency), tampering with its binding property.\\
+For instance, consider the case in which the second generator $H$ is chosen by a malicious designer who knows the (elliptic curve) discrete logarithm with respect to $G$, i.e. he knows $r_H$ such that $H = r_HG$. Thus, $C = rG + vH = rG + vr_HG$. In such a case, it is easy to produce an example in which a commitment to a value $v$ is effectively opened to a different value $v'$. It would be sufficient to make a commitment to a value $v$, $C_v = rG + vH = (r + vr_H)G = ((r - (v'-v)r_H) + v'r_H)G$ and then make the same commitment commit to value $v'$ by publishing $\hat{r} = (r - (v'-v)r_H)$ instead of $r$ as blinding factor. Indeed, $C_{v'} = (\hat{r} + v'r_H)G$ turns out to be a commitment to value $v'$. It is clear instead that he would be unable to use the same trick without knowing $r_H$.\\
+The way such a problem could be generically solved\footnote{\url{https://crypto.stackexchange.com/questions/25581/second-generator-for-secp256k1-curve}.} is by picking $H$ through the hash of an encoding of generator $G$ (of its x-coordinate in particular) and coercing the hash to a curvepoint. Indeed, just hashing the generator could not be sufficient as it couldn't possibly result in obtaining a curve point. In such a case, it suffices to keep on incrementing the obtained hash-value until getting a valid curve point. Confidential transactions exploit this technique. To conclude, it is worth to notice that being the procedure to build the second generator public (and consequently being $H$ hardcoded and available) is not a sufficient condition to deduce the elliptic curve discrete logarithm as at least hashing operations are involved.
+
+\subsection{Explicit fees}
+Although we need some more steps to figure out completely how a confidential transaction is built, the reader could have possibly already raised an issue with respect to the way fees are managed in such a design.\\
+Indeed if one thinks to a standard Bitcoin transaction, fees are what comes out from the difference of amounts associated to transaction inputs and transaction outputs\footnote{Recall that $\sum_i TxO_i + fee = \sum_i TxIn_i$.} and can be easily deduced being the amounts associated to inputs and outputs public.\\
+In confidential transactions, the encryption of amounts effectively prevents the same mechanism to work. Not being possible to deduce the fee amount $f$ implicitely, this is explicitely published as a 4-byte plaintext.\\
+In turn this has consequences on the commitment scheme. Being fees paid ``unmasked", a Pedersen commitment to fee amount is conceived as $C_f = fH$, rather than $C_f = rG + fH$. Indeed, there's no need to blind anything and it is built with blinding factor $r_f=0$.\\
+For what concern transaction propagation, nodes will just check that $\sum_i C_i^{inp} - \sum_i C_i^{out} - fH = 0$ holds, before propagating the transaction further.
+
+\section{Homomorphic encryption features}
+\label{Homom_encryption_features}
+It turns out that the additively homomorphic property of the Pedersen commitment plays a key role in the design of confidential transactions. In particular it affects the very first issue that one could think of when speaking of confidential transactions, namely how can transaction verification happen. Indeed, as by Proposition \ref{PC_properties}, Pedersen commitment is additively homomorphic in both inputs and it is exactly this property to still allow easy verification of the validity of a confidential transaction\footnote{Despite inputs/outputs amounts not being public.}. What this means is that considering a transaction with 2 inputs and 2 outputs, the following holds: $v_{i1} + v_{i2} - v_{o1} - v_{o2} = 0 \leftrightarrow C_{i1} + C_{i2} - C_{o1} - C_{o2} = 0.$   \\
+Then it also affects the way blinding factors are set.
+
+\subsection{Commitment to value 0 \& network verification}
+\label{commitment_to_0}
+As mentioned, the nodes of the network would verify the validity of a transaction and would eventually propagate it by checking whether the commitments to inputs and outputs sum to 0.\\
+On the other hand the additively homomorphic property ensures that having a sum of commitments to a total value of 0 is just the same as having a single commitment to $v=0$ (although such a commitment will never appear). Given that, we anticipate here a result that would be fundamental when we will deal with ring signatures in confidential transactions.\\
+A commitment to value $v = 0$ gives the opportunity to create a digital signature with that commitment as though it was a public key (and $v=0$ is special in this sense, you cannot do it with commitment to $v \neq 0$). Indeed, given $C = rG + \cancel{vH}_{v=0} = rG$ you can produce a digital signature with $C$ as verification public key and $r$ as the corresponding private key. Instead, if $v \neq 0$, you would be stuck not knowing the elliptic curve discrete logarithm of $C$ with respect to $G$ because of the addition of $vH$ (i.e. basically because of the NUMS hypothesis on the generator points): $C = rG + vH \rightarrow \underbrace{?}_{unknown} = \log_GC$.\\
+At first sight the previous paragraph can be puzzling, but recall that\footnote{As successfully explained in \url{https://bitcoin.stackexchange.com/questions/54042/how-does-a-range-proof-bound-lower-at-0-and-not-1}.} it is only possible to create a digital signature with a point which is a multiple of $G$. By definition, a signature with private key $q$ can be verified with public key $qG$; if $v \neq 0$, it is impossible to find $q$ such that $qG = rG + vH$ as it would require knowing the ratio (i.e. the elliptic curve discrete logarithm) between $G$ and $H$.\\
+Eventually, this means that a way a Pedersen commitment can be proven to be a commitment to $v=0$ consists in signing a transaction with the commitment as public key (the message signed is the hash of this commitment public key so as to bind the signature to the commitment), the blinding factor as private key.
+
+\subsection{Blinding factors setting}
+Being the Pedersen commitment homomorphic in both inputs by Definition \ref{additively_homo_def}, this has a consequence on the way blinding factors are managed: in order for all the commitments in a confidential transaction to sum to 0, not only committed values, but also blinding factors need to sum to 0.\\
+Consider as an example the usual transaction with 2 inputs and 2 outputs and let Alice be the sender and Bob the receiver. Suppose moreover that Bob will receive a transaction output only, the other coming back to Alice as change.\\
+In such a situation, blinding factors from the inputs are already set as they are associated to commitments to the transaction outputs referenced by the actual transaction inputs. Let's say they are $r_A$, $r_B$. Thus, Alice is left with one degree of freedom in choosing $r_C, r_D$ (the ones associated to the outputs) correctly. For instance she could set $r_C$ as $r_C = r_A + r_B - r_D$ (or she could do the same with $r_D$). Then she will send $r_C$ to Bob\footnote{The safe transfer of blinding factors will require a section on its own.}, which is the blinding factor associated to the commitment to the transaction output he will obtain, but without $r_A, r_B, r_D$ being disclosed.\\
+At first sight, such a construction seems to have a security flaw. Indeed, in the example above Alice knows the blinding factor associated to the transaction output sent to the receiver (and in a more general example he would know all of the blinding factors associated to transaction outputs), which would give her the possibility to spend the output. Though observe that here we are just describing the skeleton of a confidential transaction, while not specifying the conditions for spending as they are specific to the different protocols exploiting confidential transactions.\\
+For instance, in \cite{MW} the issue is addressed by allowing all the commitments to inputs and outputs in a transaction to sum to a non-zero value $kG$, $k$ being the so-called \textit{excess value} (another private key, but chosen by the recipient). This in turn still allows the verification of the validity of the transaction. Indeed, the total amount $v$ of the transaction is still null, which according to section \ref{commitment_to_0} enables to provide a signature with the commitment as public key. Therefore, each Mimblewimble transaction will even include a digital signature provided with the excess blinding factor as private key.\\
+On the other hand, this would prevent Alice to be able to spend Bob's output(s).
+
+\section{Zero-Knowledge range proofs}
+The tremendous potential of homomorphic encryption does not come without flaws when applied to Bitcoin. Since the underlying mathematics over commitments occurs over a finite field, addition is modular and wraps around: $a + b = c \mod{n} \rightarrow a + b = c + kn$.\\
+More precisely, the elliptic curve group $\mathbb{G}$ is cyclic having prime order $n$ (which is a 256-bits prime number) which implies that the outlined scheme based on verifying whether Pedersen commitments to transaction amounts sum to 0 is insecure without additional measures. What can happen is that addition of large values can overflow (indeed a small amount can be in the same equivalent class, modulo the field order, of a very large positive amount) or that negative values can succeed in providing a valid transaction. As a consequence, overflow can basically allow to print an unlimited amount of coins illegally and in such a way that it would be impossible to discover. On the other hand if negative amount were valid, it would be possible to create coins from nothing.\\
+As a simple example, yet far from real parameters, overflow can work this way. Consider to have a curve with prime order $n = 13$ and a standard 2 inputs - 2 outputs transaction.
+\begin{center}
+	\noindent
+	\makebox[\textwidth]{
+		\begin{tabular}{|c|c|}
+			\hline
+			Inputs & Outputs \\
+			\hline
+			$C(1,r_A)$ & $C(8,r_C)$ \\
+			\hline
+			$C(1,r_B)$ & $C(7,r_D)$ \\
+			\hline
+		\end{tabular}
+	}\captionof{table}{Modular addition: example of wrapping}
+	\label{table:wrapping}
+\end{center}
+In such a situation, matching of input and output commitments yields 0 (1 + 1 - 8 - 7 = -13 $\mod{13}$ = 0), thus the network would validate it. Meanwhile the majority of the coins (13 of 15) has been created illegally.\\
+For what concerns the negative-amount-like behaviour, the following could happen:
+\begin{center}
+	\noindent
+	\makebox[\textwidth]{
+		\begin{tabular}{|c|c|}
+			\hline
+			Inputs & Outputs \\
+			\hline
+			$C(1,r_A)$ & $C(5,r_C)$ \\
+			\hline
+			$C(1,r_B)$ & $C(-3,r_D)$ \\
+			\hline
+		\end{tabular}
+	}\captionof{table}{Modular addition: negative-amounts}
+	\label{table:negative_amounts}
+\end{center}
+Again, the transaction is still well balanced, there's a creation of coins from nothing and no easy detection (even if $v$ is negative, $vH$ is a usual elliptic curve point).\\
+The introduction of Zero-Knowledge range proofs is thus required to prevent wrapping: these configure basically as additional pieces of data which prove each commitment being genuine. In particular, range proofs are a cryptographic tool proving that each committed output is within a certain range ensuring that no overflow is possible and amounts are non-negative (e.g. [$0,2^{32}$) satoshis\footnote{Where $1$ satoshi = $10^{-8}$ BTC.}). Moreover, they are Zero-Knowledge proofs of knowledge and so they prove the committed amount is in range without disclosing neither the amount nor the blinding factor.\\
+Two main approaches to range-proof construction are available in literature. This work concentrates on the first solution to the problem, which exploits a particular variant of ring signatures, \textit{Borromean ring signatures} (\cite{Borromean}). In recent times, a new and more efficient solution, \textit{Bulletproofs}\footnote{\url{https://eprint.iacr.org/2017/1066.pdf}.}, has come out.
+
+\subsection{Enforce zero-knowledgeness: ring signatures}
+\label{example:ZK}
+A basic example can motivate the need for providing such a proof in Zero-Knowledge.\\ 
+Suppose Alice, the prover, wants to prove to Bob that $C$ is a commitment to the value $v=1$, without telling him the blinding factor $r$, but the value being known.\\
+What Bob (the verifier) can do is to compute $C' = C - 1H$\footnote{Recall that $C$ is public and this would just be a point addition operation on the curve.} and ask Alice to provide a signature (with respect to $G$) with public key $C'$. If Alice is able to provide a valid one, then $C$ has to be a commitment to $v=1$. Indeed from section \ref{commitment_to_0}, we know that it is possible to provide a digital signature with the commitment as public key only with commitments to $v=0$. If $C$ is a commitment to $v=1$, then $C'= C - 1H = rG + \cancel{1H} - \cancel{1H} = rG$ (from which $C = rG + 1H$) and Alice knows the blinding factor $r$ to sign with $C'$ as it is the one she has set for the commitment $C$.\\
+However, the exposition of the amount would be detrimental to the fulfillment of value privacy, which is the primary purpose of confidential transactions. From here the need to enforce zero-knowledgeness by avoiding giving away the amount. It turns out that this issue can be efficiently approached through ring signatures and next sections will explain how.
+
+\subsection{Role of ring signatures in confidential transactions}
+\label{role_ring_sign_in_CT}
+In section \ref{ring_signatures} we have described what ring signatures were born for, namely hiding signer's identity in a group of potential signers. However, this is not the only application for which ring signatures can be useful. For instance, in confidential transactions the use of ring signatures is somehow specialized due to their intrinsic nature.\\
+Rather than hiding the transaction creator among a group by signing the transaction with a ring signature, in confidential transactions ring signatures will be used to prove that single bits (or digits, depending on the considered encoding) of the encrypted output amount are in a certain range (e.g. \{0,1\}) without giving away the actual number. In particular, the signer will produce a ring of commitments for each digit of the encrypted output amount. In turn, from the number of overall commitments (after the encoding of the encrypted amount is made public) one can deduce the length in digits of the encrypted amount the whole commitment commits to. For instance, considering a binary encoding, it would possible to build a 3-bits amount with 6 Pedersen commitments (2 per bit) and in turn a 3-bits number can be at most in [0,8). Thus if valid it will prove to be a commitment to a value in that range. More technical details will come in next sections.\\
+To have an idea of how this can work let us see how the example of section \ref{example:ZK} can be specialized with ring signatures.\\
+This time the proof will not give away the amount. In particular, Alice can prove to Bob that $C$ is \textit{either} a commitment to $v=0$ or to $v=1$, thus it is in range $\{0,1\}$.\\
+While Alice provides a ring signature over \{$C, C'$\}, Bob can compute again $C' = C - 1H$. If compared with the example in section \ref{example:ZK} where the committed value was known, this time it should be less clear the reason why Bob would compute the same quantity as before. However a single ring with 2 commitments only should suggest a binary encoding for the committed amount, thus motivating the choice. Then,
+\begin{itemize}
+    \item if $C$ is a commitment to $v=1$, Alice does not know its discrete logarithm (recall what we have said in section \ref{commitment_to_0}), but $C'$ becomes a commitment to $v=0$ of which she knows the discrete logarithm and makes her able to provide a valid signature over the ring;
+    \item on the contrary, if $C$ is a commitment to 0, she knows its discrete logarithm, she doesn’t for $C'$;
+    \item if $C$ is a commitment to any other amount, none of them commits to $v=0$, thus preventing Alice to be able to sign.
+\end{itemize}
+Observe that this can work for any pair of numbers or it can even work to process larger rings.
+
+\subsection{AOS ring signatures}
+\label{AOS_ring}
+Introduced in \cite{AOS} by Abe, Ohkubo and Suzuki (from which they derive the name), they are a particular variant of ring signatures able to gain consistent reductions in size and verification time with respect to earlier ring signatures schemes. It is worth to notice that when used with discrete-log type keys only (because they allow to use both public keys for integer factoring based schemes and the ones for discrete-log based schemes), they yield much shorter signatures with respect to previous ring signature schemes.\\
+The design of the ring is basically the same described in section \ref{ring_signatures}, where a ring of $r$ verification public keys requires knowledge of \textit{one} of the corresponding secret private keys. Moreover, given that all of the verification public keys play the same role in verifying the signature, the specific signing key remains secret.\\ 
+They provide ``OR proofs": given a ring with $r$ public keys, the ambiguous signer proves to know \{$q_0$ OR $q_1$ OR $\dots$ OR $q_r$\}.\\
+Before entering in the details of the full signature algorithm, it is necessary to describe the way a signer can produce a valid signature in a ring, yet not a ring signature. Let the signer be endowed with his private-public key pair $\{q, Q\}$. This single signature generation involves:
+\begin{itemize}
+    \item picking up a random nonce $k$ $\rightarrow$ $K = kG$;
+    \item given the message $m$ to be signed, computing $hash(K||m)$ $\rightarrow$ $e = hash(K||m)$;
+    \item signing as follows: $s = k + eq$;
+    \item publishing the signature as $(s,e,m)$.
+\end{itemize}
+In turn, its verification (given $s, e, m, Q$ as inputs) would imply computing $sG - eQ$. Indeed, $sG - eQ = sG - eqG = (s - eq)G = kG = K$; then with $K$ at disposal the verifier could possibly reconstruct $hash(K||m)$ and verify whether it equals $e$ (given as input). If so, the signature is valid. \\
+Thus, it can be noticed that it is nothing else than one of the variants of a Schnorr signature (according to \cite{Schnorr}); the transition to a valid \textit{ring signature} would involve chaining these single signatures together and the way this is done is explained through the full signature algorithm.\\
+The complete signature algorithm is the following. Let $m$ be the message to be signed, $i$ be the the index corresponding to the verification public key $Q_i$ in the ring and $i^{*}$ the index corresponding to the unique private key. It outputs the signature $\sigma$ for ($m, Q_i$).
+\begin{algorithm}[H]
+	\caption{AOS ring signature: signature algorithm}
+	\label{alg:AOS_sign}
+	\begin{algorithmic}[1]
+		\Procedure{AOS-sign}{$m, q_i^{*}, Q_i$: $0 \leq i \leq r-1$}
+		\State \textbf{Initialization}:
+		\State $k_i^{*}$ $\xleftarrow{\text{\$}} \{1, ..., n - 1\}$
+		\State $K_i^{*} \gets k_i^{*}G$
+		\State \textbf{Forward sequence}:
+		\For {$i \gets i^{*}+1,\dots,r-1,0,\dots,i^{*}$}
+		\State $e_i \gets hash(K_{i-1}||m||i)$
+		\State $s_i\xleftarrow{\text{\$}} \{1, ..., n - 1\}$
+		\State $K_i \gets s_iG - e_iQ_i$
+		\EndFor
+		\State \textbf{Forming the ring}:
+		\State $s_i^{*} \gets k_i^{*} + e_i^{*}q_i^{*}$
+		\State \textbf{return} ($e_0, s_0, \dots, s_{r-1}$)$\equalscolon \sigma$
+		\EndProcedure
+	\end{algorithmic}
+\end{algorithm}
+\noindent
+The key points of the algorithm are the following. At first, all of the $s$-values except for the one which effectively closes the ring are forged.\\
+Then, in principle the signature would include the complete set of $e$-values and $s$-values $(e_0, s_0, e_1, s_1, \dots, e_{r-1}, s_{r-1})$. However, as $e$-values can be deterministically retrieved once the first $e$-value and all of the $s$-values are published, it suffices to publish $(e_0, s_0, s_1, \dots, s_{r-1})$, an $(r+1)$-dimensional tuple of 32-bytes numbers. \\ \ \\
+Instead, the verification algorithm is the following. It takes as input the message $m$, the whole published signature $\sigma$ and the set of verification public keys $Q_i$, $0 \leq i \leq r-1$. It clearly shows that the signature is valid if the computed $e_0$ coincides with the $e_0$ provided as first entry of the tuple $\sigma$.
+\begin{algorithm}[H]
+	\caption{AOS ring signature: verification algorithm}
+	\label{alg:AOS_verify}
+	\begin{algorithmic}[1]
+		\Procedure{AOS-verify}{$m, \sigma, Q_i: 0 \leq i \leq r-1$}
+		\For {$i \gets 0,\dots,r-1$}
+		\State $K_i \gets s_iG - e_iQ_i$
+		\State $e_{i+1\%r} \gets hash(K_i||m||i+1)$
+		\EndFor
+		\If {$e_0 = 0$ or $e_0 \geq n$}
+		\State \textbf{return} ``false"
+		\EndIf
+		\If {$e_0 = \sigma[0]$}
+		\State \textbf{return} ``true"
+		\EndIf 
+		\EndProcedure
+	\end{algorithmic}
+\end{algorithm}
+\noindent
+The algorithm shows that the procedure obviously starts at the node for which the $e$-value is known. A valid signature will just ensure that one of the private keys corresponding to the set of public keys $Q_i$ has signed without giving any clue on which effectively did.
+
+\subsection{Borromean ring signatures}
+Introduced in \cite{Borromean}, Borromean ring signatures are a generalization of the AOS ring signature scheme. They generalize the previous construction as they overcome the simple ``OR proofs" and they can represent proofs of knowledge of more general functions (any monotone boolean function is fine) of the signing keys.\\
+While the AOS construction chained signatures together to form a ring, here entire rings of signatures are chained together providing a single and more compact structure of the one that would arise from having $r$ ($r$ being now the number of rings) separate AOS structures. Indeed, the use case of the Borromean ring signatures in confidential transactions is the one in which $r$ separate AOS-like structures and consequently $r$ rings of public keys are needed.\footnote{We will enter in the details later in this section. However, we have already given a hint in section \ref{role_ring_sign_in_CT}: basically a ring per digit of the encrypted output amount is needed.} Though we do not enter now in the details of the benefits of Borromean ring signatures, it is worth to notice that they provide a significant space saving for what concerns signature size.\\
+The ambiguous signer can now prove to know one of \{$q_{0,0}$ OR $q_{0,1}$ OR $\dots$\} AND one of \{$q_{1,0}$ OR $q_{1,1}$ OR $\dots$\} AND $\dots$ AND one of \{$q_{{r-1},{0}}$ OR $q_{{r-1},{1}}$ OR $\dots$\}, where the first index represents the ring, the second one represents each public key in the ring.\\
+Thus, a Borromean ring signature configures as a signature on a message $m$ that can be produced by a signer that knows \textit{all} of the private keys of all the rings of verification public keys (one per ring) or by parties knowing all of them.\\
+Moreover, it is the way the Borromean ring signature is designed to make it achieve its compactness, which in turn affects the signature size (a more compact structure in this case means a structure which requires less public keys for verification). If we represent each ring by means of a graphical structure, we can think of it as a graph with nodes, each referring to a public key and labelled by its $e$-value. The AND/OR gate described above is obtained without requiring multiple graphs, but by means of a graph structure made of $r$ rings, with the optimization of pinning a node (e.g. node 0) as a shared node chaining all the rings. The shared node has an ingoing and an outgoing edge per ring, which should be pretty clear given that it closes all of the rings. Eventually, multiple $s$-values are associated to the shared node and they either require a real private key or force a random $e$-value by picking up a random $s$-value (in analogy with the description provided in section \ref{AOS_ring}).\\
+A graphical representation can help in figuring out the overall structure. Figure \ref{fig:Borromean_ringg} considers the example of a structure made of 4 rings all closing in $e_0$. Dashed edges represent those for which $s$-values are connected to known private keys.
+\begin{center}
+\begin{figure}[H]
+\hspace{-1.25cm}
+\begin{tikzpicture}[->]%,>=stealth',shorten >=1pt]
+  \node[draw, circle] (e0) at (0in, 0in)     {$\textcolor{black!100}{e_0}$};
+  \node[draw, circle] (e1) at (1.5in, 1in)   {$\textcolor{black!100}{e_{0,0}}$};
+  \node[draw, circle] (e2) at (1.5in, -1in)  {$\textcolor{black!100}{e_{0,1}}$};
+  \node[draw, circle] (e3) at (-1.5in, 1in)  {$\textcolor{black!100}{e_{1,0}}$};
+  \node[draw, circle] (e4) at (-1.5in, -1in) {$\textcolor{black!100}{e_{1,1}}$};
+  \node[draw, circle] (e1_bis) at (2in, 1.5in)     {$\textcolor{black!100}{e_{2,0}}$};
+  \node[draw, circle] (e1_ter) at (-2in, 1.5in)     {$\textcolor{black!100}{e_{3,0}}$};
+  \node[draw, circle] (e2_bis) at (-2in, -1.5in)     {$\textcolor{black!100}{e_{3,1}}$};
+  \node[draw, circle] (e2_ter) at (2in, -1.5in)     {$\textcolor{black!100}{e_{2,1}}$};
+
+  % left circle
+  \path
+    (e0) edge[bend right] node[left] {\tiny{\textcolor{black!100}{$(s_{1,0}, Q_{1,0})$}}} (e3)
+    (e3) edge[bend right, dashed] node[right] {\tiny{\textcolor{black!100}{$(s_{1,1}, Q_{1,1})$}}} (e4)
+    (e4) edge[bend right] node[left] {\tiny{\textcolor{black!100}{$(s_{1,2}, Q_{1,2})$}}} (e0)
+    (e0) edge[bend right] node[right] {\tiny{\textcolor{black!100}{$(s_{3,0}, Q_{3,0})$}}} (e1_ter)
+    (e1_ter) edge[bend right] node[left] {\tiny{\textcolor{black!100}{$(s_{3,1}, Q_{3,1})$}}} (e2_bis)
+    (e2_bis) edge[bend right, dashed] node[right] {\tiny{\textcolor{black!100}{$(s_{3,2}, Q_{3,2})$}}} (e0);
+  % right circle
+  \path
+    (e0) edge[bend left] node[right] {\tiny{\textcolor{black!100}{$(s_{0,0}, Q_{0,0})$}}} (e1)
+    (e1) edge[bend left, dashed] node[left] {\tiny{\textcolor{black!100}{$(s_{0,1}, Q_{0,1})$}}} (e2)
+    (e2) edge[bend left] node[right] {\tiny{\textcolor{black!100}{$(s_{0,2}, Q_{0,2})$}}} (e0)
+    (e0) edge[bend left, dashed] node[left] {\tiny{\textcolor{black!100}{$(s_{2,0}, Q_{2,0})$}}} (e1_bis)
+    (e1_bis) edge[bend left] node[right] {\tiny{\textcolor{black!100}{$(s_{2,1}, Q_{2,1})$}}} (e2_ter)
+    (e2_ter) edge[bend left] node[left] {\tiny{\textcolor{black!100}{$(s_{2,2}, Q_{2,2})$}}} (e0);
+\end{tikzpicture}
+\captionof{figure}{Graphical structure behind Borromean ring signatures}
+\source{adapted from \cite{Borromean}}
+\label{fig:Borromean_ringg}
+\end{figure}
+\end{center}
+The complete signature algorithm is the following. Let $Q_{i,j}$, $0 \leq i \leq r-1$, $0 \leq j \leq m_i-1$ be the collection of verification public keys. In particular, $i$ indexes each ring (these are $r$ rings to be chained together), while $j$ indexes each public key ($m_i$ public keys per ring in total). Thus, $Q_{i,j}$ represents the $j^{th}$ public key in the $i^{th}$ ring.\\
+Moreover, let $m$ be the message to be signed and $\{q_i\}_{i=0,\dots,r-1}$ be the private key\footnote{There's no need to reference the position in the ring with a second index as there is a known private key per ring only.} corresponding to \{$Q_{i,j_i^{*}}\}_{i=0,\dots,r-1}$, $j_i^{*}$ being the index of the signing key of the $i^{th}$ ring. Thus, $Q_{i,j_i^{*}}$ represents the public key in the $i^{th}$ ring whose corresponding private key is the signing one (i.e. the one that closes the ring).
+\begin{algorithm}[H]
+	\caption{Borromean ring signature: signature algorithm}
+	\label{alg:Borromean_sign}
+	\begin{algorithmic}[1]
+		\Procedure{Borromean-sign}{$m, q_i: 0 \leq i \leq r-1, Q_{i,j}: 0 \leq i \leq r-1$, $0 \leq j \leq m_i-1$}
+		\State $M \gets hash(m||Q_{0,0}||Q_{1,0}||\dots||Q_{r-1,m_{r-1}-1})$
+		\For {$i \gets 0,\dots,r-1$}
+		\State $k_i$ $\xleftarrow{\text{\$}} \{1, ..., n - 1\}$
+		\State $j_i^{*}$ $\xleftarrow{\text{\$}} \{0, ..., m_i - 1\}$
+		\State $R_{i,j_i^{*}} \gets k_iG$
+		\If {$((j_i^{*}+1)$ \% $m_i )\neq 0$}
+		\State $e_{i,j_i^{*}} \gets int(hash(M||R_{i,j_i^{*}}||i||j_i^{*}))$
+		\State assert $e_{i,j_i^{*}} \neq 0$ and $e_{i,j_i^{*}} < n$
+		\For {$j \gets (j_i^{*}+1)$ \% $m_i,\dots,m_i-1$}
+		\State $s_{i,j} \xleftarrow{\text{\$}} \{1, ..., n - 1\}$
+		\State $e_{i,j} \gets int(hash(M||R_{i,j}||i||j))$
+		\State assert $e_{i,j} \neq 0$ and $e_{i,j} < n$
+		\State $R_{i,j} \gets s_{i,j}G - e_{i,j}Q_{i,j}$
+		\EndFor
+		\EndIf
+		\EndFor
+		\State $e_0 \gets hash(M||R_{0,m_0-1}||\dots||R_{r-1,m_{r-1}-1})$
+		\For {$i \gets 0,\dots,r-1$}
+		\State $e_{i,0} \gets int(hash(M||e_0||i||0))$
+		\State assert $e_{i,0} \neq 0$ and $e_{i,0} < n$
+		\For {$j \gets 1,\dots,j_i^{*}$}
+		\State $s_{i,j-1} \xleftarrow{\text{\$}} \{1, ..., n - 1\}$
+		\State $e_{i,j} \gets int(hash(M|| s_{i,j-1}G - e_{i,j-1}Q_{i,j-1}||i||j))$
+		\State assert $e_{i,j} \neq 0$ and $e_{i,j} < n$
+		\EndFor
+		\State $s_{i,j_i^{*}} \gets k_i + q_ie_{i,j_i^{*}}$
+		\EndFor
+		\State \textbf{return} ($e_0, s_{i,j}: 0 \leq i \leq r-1$, $0 \leq j \leq m_i-1$)$\equalscolon \sigma$
+		\EndProcedure
+	\end{algorithmic}
+\end{algorithm}
+\noindent
+The algorithm produces a valid signature for the whole structure, namely it provides a signature of knowledge of the $r$ private keys \{$q_{i}\}_{i=0,\dots,r-1}$ corresponding to public keys \{$Q_{i,j_i^{*}}\}_{i=0,\dots,r-1}$.\\
+For what concerns the computation of the $s$-values and $e$-values and focusing on single rings, it can be noticed that in analogy with the AOS construction each edge $i$ from a node labelled with its $e$-value is characterized by a $s_i$ value which is either random or equal to $s_i = k_i + q_ie_i$ and each node with a single incoming and outcoming edge (all but the shared one) has an associated $e$-value of the type $e_i = hash(m||s_{i-1}G - e_{i-1}Q_{i-1})$.\\
+On the other hand, the unique node with multiple ingoing and outgoing edges computes the $e$-value as $e_0 = hash(m||s_{0,m_0-1}G - e_{0,m_0-1}Q_{0,m_0-1}||\dots||s_{{r-1},{m_{r-1}-1}}G - e_{{r-1},{m_{r-1}-1}}Q_{{r-1},{m_{r-1}-1}})$ as it closes $r$ rings.\\
+Some other remarks would help in explaining the whole algorithm. First of all, notice the concatenation of both ring number and position in the ring into the computation of $e$-values which guarantees the impossibility of moving rings around without breaking the signature. This of course does not apply to the shared node (node 0) as it is common to all rings.\\
+For what concerns the message, it is unique for the whole structure, not ring-specific. This shouldn't be surprising if one recalls that the message to be signed is the hash of the commitment. Thus, being the whole chain of rings to commit to a single commitment, this implies the message being unique\footnote{In the AOS ring signature construction each ring commits to a single commitment, thus the message becomes ring-specific.}.
+\\ \ \\
+Verification happens according to Algorithm \ref{alg:Borromean_verify}. Indexes obviously run as before and the algorithm takes as inputs the message $m$, the whole signature $\sigma$ and the set of verification public keys $Q_{i,j}$, $0 \leq i \leq r-1$, $0 \leq j \leq m_i-1$.\\
+Observe that it is much simpler than the signature algorithm. It avoids the two phases of the signature procedure as it does not depend on which signing keys per ring are known (of course because a verifier does not know them).
+Before entering in the details of how Borromean ring signatures are effectively deployed, let us evaluate their benefits in the comparison with the equivalent structure made of AOS ring signatures. Indeed, the construction above should have pointed out that a Borromean ring is structurally equivalent to a number of AOS rings chained in a single shared node. Consider $r$ rings and $N$ verification public keys per ring.
+\begin{center}
+	\noindent
+	\makebox[\textwidth]{
+		\begin{tabular}{|c|c|}
+			\hline
+			& Signature size \\
+			\hline
+			$r$ AOS ring signatures & $r\cdot N + r$ (32-bytes numbers) \\
+			\hline
+			Borromean ring signature & $r\cdot N + 1$ (32-bytes numbers) \\
+			\hline
+			$\Delta$ & $\textbf{r - 1}$ (32-bytes numbers) \\
+			\hline
+		\end{tabular}
+	}\captionof{table}{Borromean ring signature: signature size}
+	\label{table:Borr}
+\end{center}
+The Table \ref{table:Borr} summarizes signature sizes and computes the saving obtained via Borromean ring signatures.
+First of all, observe that verifying $r$ AOS ring signatures requires $r\cdot N$ $s$-values ($N$ per ring) and $r$ $e$-values (1 per ring) being published. A Borromean ring signature requires instead a unique $e$-value (the shared one), from which one can easily derive the overall saving. Indeed, it is worth to notice that as the number of rings increases the saving becomes significant. For the small structure in Figure \ref{fig:Borromean_ringg} with 4 rings and 3 verification public keys each we get already a $\sim 20\%$ shorter signature.\\ \ \\
+\begin{algorithm}[H]
+	\caption{Borromean ring signature: verification algorithm}
+	\label{alg:Borromean_verify}
+	\begin{algorithmic}[1]
+		\Procedure{Borromean-verify}{$m, \sigma, Q_{i,j}: 0 \leq i \leq r-1$, $0 \leq j \leq m_i-1$}
+		\State $M \gets hash(m||Q_{0,0}||Q_{1,0}||\dots||Q_{r-1,m_{r-1}-1})$
+		\For {$i \gets 0,\dots,r-1$}
+		\State $e_{i,0} \gets int(hash(M||e_0||i||0))$
+		\If {$e_{i,0} = 0$ or $e_{i,0} \geq n$}
+		\State \textbf{return} ``false"
+		\EndIf
+		\For {$j \gets 0,\dots,m_i-1$}
+		\State $R_{i,j+1} \gets s_{i,j}G - e_{i,j}Q_{i,j}$
+		\If {$j \neq m_{i}-1$}
+		\State $e_{i,j+1} \gets int(hash(M||R_{i,j+1}||i||j+1))$
+		\If {$e_{i,j+1} = 0$ or $e_{i,j+1} \geq n$}
+		\State \textbf{return} ``false"
+		\EndIf
+		\EndIf
+		\EndFor
+		\EndFor
+		\State $e_0^{'} \gets hash(M||R_{0,m_0-1}||\dots||R_{r-1,m_{r-1}-1})$
+		\State \textbf{return} $e_0^{'} = e_0$
+		\EndProcedure
+	\end{algorithmic}
+\end{algorithm}
+\noindent
+This section ends with the explanation of how Borromean ring signatures effectively provide Zero-Knowledge range proofs. Their role was previewed in section \ref{role_ring_sign_in_CT}.\\
+We have already defined range proofs as additional pieces of data attached to each transaction output proving that the committed output amount lies in a predetermined range of positive values. The first point that needs clarification is the definition of what a proper range would be. This depends on the kind of range proof exploited (in terms of bits of randomness one wants to achieve). For instance, a standard 32-bit range proof limits to a range in between 1 and $2^{32}-1$ satoshis (42.94967295 BTC). However this in principle does not prevent larger outputs to be created, both because any value in between 2 and 64 bits of randomness can be chosen (provided the relative range is made public) and because confidential transactions even support scaling the amount by a power of 10. This latter feature means that provided it is specified that the proof does not deal with satoshi units, but rather with multiples of them, it is possible to process amounts in higher ranges through small proofs.\footnote{As explained in \url{https://bitcoin.stackexchange.com/questions/46865/confusion-of-confidential-transactions}.} For instance referring to the above 32-bit proof, dealing with $10^6$ satoshis as unit, it would be possible to embed all possible amounts ranging in between 0.01 and 42949672.95 BTC. \\
+It is also clear that it is even possible to use large ranges for small proofs, but this would make the proof slower to create and verify and it would even imply higher fees.\\
+Then it comes the time for the sender to effectively build a range proof per transaction output. As first step, this implies considering the committed output amount (in a given encoding) and ring-signing (with a Borromean-style ring signature) over each digit. The encoding chosen by confidential transactions for the output amount is a base-4 encoding and the reason behind such a choice is that it minimizes the overall number of commitments sent.\\
+We start by building the range proof step by step, then we will justify the base-4 representation. For simplicity of notation we consider the 32-bit range proof described above. The procedure is the following:
+\begin{itemize}[leftmargin=*]
+    \item consider the \textit{output amount} in its \textit{base-4 expansion};\footnote{A 32-bits number can be represented with 16 digits in base-4.}
+    \begin{equation*}
+        v = v_0\cdot 4^0 + v_1\cdot 4^1 + v_2\cdot 4^2 + \dots + v_{15}\cdot 4^{15}.
+    \end{equation*}
+    \item \textit{Ring-sign over each digit}, which implies:
+    \begin{itemize}
+        \item committing through a Pedersen commitment to each digit value, i.e. building $C_i = r_iG + v_i4^iH$, $i=0,\dots,15$, making sure that the sum of commitments is exactly $C$, the commitment to the value associated to the transaction output;
+        \item ``arranging" 16 rings of signatures (one per digit) with 4 verification public keys per ring, each committing to one digit value in $0,\dots,3$; 
+        \item providing (for each digit) a Borromean ring signature over the ring
+        \begin{equation*}
+            \{r_iG + v_i4^iH, r_iG + v_i4^iH - 4^iH, r_iG + v_i4^iH - 2\cdot4^iH, r_iG + v_i4^iH - 3\cdot4^iH\}.
+        \end{equation*}
+        Thus on the one hand each ring proves each digit to commit to a value $v_i\cdot4^i$, $i=0,\dots,3$ (without knowing which one), from which it should be clear that the resulting Borromean ring signature proves the whole commitment to range in $[1, \sum\limits_{i=0}^{15}v_i\cdot4^i]$ satoshi. On the other hand, if $v_i \notin \{0,1,2,3\}$ none of the commitments would be a commitment to $v_i=0$, thus preventing the ring to be signable according to the arguments given in section \ref{commitment_to_0} and to the example presented in section \ref{role_ring_sign_in_CT}.
+    \end{itemize}
+    \item \textit{Publish} the \textit{range proof} associated to the transaction output.\\
+    Notice that according to the outlined scheme, it consists of the set of commitments to each digit value $v_i$ plus the whole Borromean signature:
+    \begin{equation*}
+        RP_v = (C_0, \dots, C_{15}, \underbrace{e_0, s_{0,0}, \dots, s_{0,3}, \dots, s_{15,0}, \dots, s_{15,3}}_{signature}),
+    \end{equation*}
+    where as usual the indexes of the $s$-values respectively refer to ring number and position in each ring. 
+\end{itemize}
+For the sake of clarity we can show a concrete example of the whole procedure.\\
+Consider a transaction output of 2,010 BTC (i.e. $201000000_{10}$ satoshi $\leftrightarrow$ $0023332300101000_4$ satoshi).\\
+Then, commit to each digit value of the encoded amount through a Pedersen commitment $C_i = r_iG + v_i4^iH$. For instance, considering the third digit from the left (which is a 2), it would mean building the following:
+\begin{equation*}
+    C_{13} = r_{13}G + 2\cdot4^{13}H = r_{13}G + 134217728H.
+\end{equation*}
+Then arrange the following set of public keys (for the considered digit):
+\begin{align*}
+        C_{13,0} &= C_{13} - 0H\\ 
+        C_{13,1} &= C_{13} - 1\cdot4^{13}H = C_{13} - 67108864H\\
+        C_{13,2} &= C_{13} - 2\cdot4^{13}H = C_{13} - 134217728H\\
+        C_{13,3} &= C_{13} - 3\cdot4^{13}H = C_{13} - 201326592H
+\end{align*}
+Eventually provide a Borromean ring signature over this ring, which in the background means to perform a real signature for $C_{13,2} = r_{13}G$.\\
+For what concerns the range proof size, consisting of the shared $e$-value, 4 $s$-values per ring and a commitment per ring it is about 2.6 KB per transaction output. Given these premises, it can also be proven that the base-4 representation minimizes the total size of the range proof.\\
+Indeed, given that $y$ is the number of bits-per-digit in each encoding\footnote{Base 2 $\leftrightarrow$ 1 bit per digit; base 4 $\leftrightarrow$ 2 bits per digit; base 8 $\leftrightarrow$ 3 bits per digit etc.} and given that we are considering 32-bit range proofs, it can be proven that the total number of commitments plus $s$-values (the $e$-value is unique independently of the encoding) is given by $N(y) = \frac{32}{y}\cdot(1+2^y)$.
+\begin{center}
+\includegraphics[scale = 0.25]{Images/N_y.png}%
+\captionof{figure}{Total number of commitments plus s-values}
+\label{fig:N_y}
+\end{center}
+As Figure \ref{fig:N_y} shows, $N(y)$ takes its minimum around $y=2$, meaning that the minimization occurs when considering the base-4 encoding.
+
+\section{Sender/receiver communication}
+What is left out are the details about the communication between sender and receiver for what concerns setting of the blinding factors and transmission of the committed amounts. Indeed, from the point of view of the network range proofs represent proofs that output amounts are valid, but amounts (together with blinding factors) stay secret as they are blinded by Pedersen commitments. However, both amounts and blinding factors need to be known by participants in the transaction. This opens the issue of their safe transfer from sender to receiver.\\
+It turns out that confidential transactions succeed in providing a space-saving solution to embed these secret data in the transaction without adding more data rather than commitments and range proofs. Indeed, \textit{amounts} are embedded in range proofs without taking up more space; \textit{blinding factors} can be retrieved by sender and receiver only as part of a deterministic generation process which enables the transfer to happen non-interactively.\\
+In addition to this, it is even possible to transfer arbitrary user-selected data without further overload.\\
+Thus, we will see how the ECDH primitive presented in section \ref{ECDH} is exploited to serve the purpose this section is all about. First of all we recall that an instance of ECDH is needed to define a shared key between sender and receiver.\\
+A peculiarity of confidential transactions is that each address contains a \textit{scanning public key} for ECDH purpose only. More precisely, the sender ECDH public key is published as part of the output (it coincides with $Q_A$ in the scheme of section \ref{ECDH}), while each confidential transaction address contains the ECDH public key of the receiver ($Q_B$ in section \ref{ECDH}). Eventually $q_A$ and $q_B$ play the role of ECDH ephemeral private keys (respectively associated to the sender scanning key and the receiver one). Given this, it is clear that both sender and receiver can compute the same secret key as it was described in section \ref{ECDH}.\\ 
+The shared key is then used by both sender and receiver to seed a RFC6979 \cite{rfc6979} pseudo-random number generator (prng) to deduce the same blinding factors and random $s$-values which enter in the Borromean ring signature algorithms. Indeed without entering in the details of the RFC6979 standard, this is used to deterministically and safely generate the nonce $k$ to be used in ECDSA signatures and outside ECDSA can basically work as a cryptographically secure pseudo-random number generator taking as input a seed. Moreover, various rounds of RFC6979 can be run in sequence, each time using the previous output as seed.\\
+Making this process deterministic, provides some sort of advantages. Among these there is certainly the possibility to distinguish where randomness resides and exploit the feature accordingly. For the \textit{sender}, this configures in the possibility to send the committed transaction output amount (and possibly other kinds of arbitrary selected data) over predetermined and forged signature values (we will describe how in a while); for the \textit{receiver}, this means to possibly ``rewind" the proof and in turn generate the same blinding factors of the sender, read the transaction output amount and extract further messages the sender could have sent.\\
+We will enter now in all of these details.\\
+\underline{Setting and transmission of the blinding factors}:\\
+the 32-bit range proof of the previous section includes a commitment per digit of the committed output amount, the blinding factors of which should be known by the receiver (their sum being nothing else than the blinding factor of the commitment to the output amount). Indeed, 16 blinding factors (one per ring) should be shared by sender and receiver.\\ 
+At this extent the 32-byte shared key derived from the ECDH instance is used as first seed to a RFC6979 prng, each successive output is used as next seed to deduce all of the blinding factors $r_0, r_1, \dots, r_{15}$ (though $r_{15}$ is obtained by difference so as to to match the sum of the blinding factors from inputs).\\
+\underline{Generation of forged signatures and nonces}:\\
+as we have described, in the Borromean ring signature algorithm a single $s$-value per ring is obtained from a known private key, all the others are forged, but indistinguishable from random. In the example of the 32-bits range proof discussed in the previous section, this means that $\frac{3}{4}$ of the $s$-values are forged and again a RFC6979 prng is used to generate them in such a way that the receiver would be able to easily retrieve all of them by seeding the prng with the same seed the sender has used. \\
+For what concerns nonces $k$, one per ring is required to be picked uniformly at random. Observe that $k_i$, $i = 0, \dots, r-1$ enters in the computation of the real $s$-value only, meaning that even for the remaining $\frac{1}{4}$ of the $s$-values generation of random values is needed (and the same solution is adopted).\\
+\underline{Transmission of committed amount}:\\
+the transaction output amount is embedded in the already provided construction in such a way that it is easily available to the receiver and does not occupy more space.\\
+Given that the published range proof has to be indistinguishable from random for anybody but the participants in the transaction, after locating where randomness resides ($s$-values that can be retrieved via RFC6979 procedure are the forged ones) the idea is to replace this randomness in the range proof with an encrypted message that the receiver only can decode.\\
+In particular, the amount is embedded into one of the forged signatures (usually the last one, unless it is the real one) by XORing\footnote{The XOR is the \textit{bitwise addition} without carry. Among its properties: 
+\begin{itemize}
+    \item A $\oplus$ 0 = A;
+    \item A $\oplus$ A = 0;
+    \item (A $\oplus$ B) $\oplus$ C = A $\oplus$ (B $\oplus$ C);
+    \item (B $\oplus$ A) $\oplus$ A = B $\oplus$ 0 = B.
+\end{itemize}} it with the forged $s$-value for that signature. Indeed, the XOR does not affect the pseudo-randomness of the original $s$-value. Moreover, it could be useful to stress once more the fact that only forged signatures are tampered with in this way; the real $s$-value is necessary to close the ring and validate the signature, so it mustn't be manipulated.\\
+Referring to forged signatures only (and consequently forged $s$-values only), let $s_{common}$ be the $s$-value deterministically generated via the RFC6979 procedure and $s_{published}$ be the $s$-value actually published by the sender in the range proof. What this means is that $s_{published}$ is given by
+\begin{equation*}
+    s_{published} = s_{common} \oplus amount,
+\end{equation*}
+and implies that: 
+\begin{equation*}
+    s_{common} \oplus s_{published} = s_{common} \oplus s_{common} \oplus amount = amount.
+\end{equation*}
+Thus, the receiver by looking at the last $s$-value (unless it is the case that the last $s$-value is not forged) and computing $s_{common} \oplus s_{published}$ sees the amount if the last signature has been tampered with it, 0 if not.\\
+\underline{Transmission of other user-defined data}:\\
+the amount takes 32 bytes only, all the rest less the space corresponding to real $s$-values (which is however almost 80\% of the size of the range proof) can be exploited in a similar way for the transmission of arbitrary data. These data rather than the amount would be XORed in with the pseudo-random $s$-values. \\
+Thus, at least one (if no arbitrary data is sent) of the forged $s$-values published as part of the range proof is the result of a XORing.\\
+\underline{Proof's ``rewind" by the receiver}:\\
+given the shared key, the receiver can run the same RFC6979 procedure of the sender and in turn deduce same blinding factors and $s$-values. In turn he can perform the XOR operation as it was described before.

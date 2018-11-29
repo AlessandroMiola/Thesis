@@ -38,8 +38,10 @@
 \newtheorem{mylemma}{Lemma}[section]
 \newtheorem{mytheorem}{Theorem}[section]
 
+\renewcommand{\labelitemii}{$\bullet$}
 \renewcommand\textflush{flushright}
 \setlength\epigraphwidth{.6\textwidth}
+\newcommand{\source}[1]{\caption*{Source: {#1}} }
 
 \makeglossaries
 \include{Glossary/Glossary}
@@ -95,6 +97,7 @@
 \include{Chapters/Introduction}
 \include{Chapters/Privacy_and_Fungibility}
 \include{Chapters/Cryptographic_primitives}
+\include{Chapters/Confidential_transactions}
 %\include{Chapters/Conclusions.tex}
 
 
