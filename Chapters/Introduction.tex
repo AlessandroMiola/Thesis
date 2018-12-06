@@ -1,4 +1,32 @@
 \chapter{Introduction}
 \label{chpr:intro}
+Privacy is fundamental in every financial and monetary system.
+Bitcoin should not make any exception. The same whitepaper \cite{Nakamoto_bitcoin:a} recognizes the need for privacy: it explains how users' privacy is hidden behind pseudonymous addresses,\footnote{In the reality the white paper speaks of public keys rather than addresses. Indeed, in the whole paper there's no mention of addresses at all, but the first code release already provided this functionality.} but admits the flaws of this approach in terms of the possibility of the history of transactions being linked. \\
+Bitcoin's blockchain structure seems not to be ideal for privacy and seems to presume an insurmountable trade-off for its achievement. Bitcoin's security model requires universal verification of the validity of each transaction, in turn needing public transaction data; indeed, the Bitcoin's blockchain is globally accessible and immutable, it takes track of all of the transactions ever happened and all these characteristics can be effectively harmful to privacy. \\
+Moreover, this is also crucial as the lack of privacy affects Bitcoin's capacity to serve as money. For instance, it is detrimental for its fungibility.\\
+Developers have worked since long time in the direction of improving privacy in Bitcoin. But on the one hand, integration to the main protocol purposely takes time; on the other hand, privacy-based solutions are often costly and this precludes their possibility of being soft-forked.\\
+Confidential transactions \cite{Max15} is the proposal for a kind of transactional format where each output amount is encrypted and thus hidden, but without preventing each transaction to be successfully validated by each node of the network. This is a consequence of homomorphic encryption and it demonstrates that it is possible to overcome the previously addressed trade-off.\\
+The introduction of confidential transactions would bring consistent value privacy, but cannot protect against the possibility of linking transaction histories. However it is the case that this proposal well integrates with some others affecting transactional graph privacy.\\
+Such benefits would not come at zero cost. The described implementation of confidential transactions suffers from excessively burdening each transaction size and consequently is not ready yet for integration in the main protocol.
+\\ \ \\
+The present thesis has been written during the author's fellowship at the Digital Gold Institute, \url{https://www.digitalgoldinstitute.org}. The author has partly contributed to the Python library available at \url{https://github.com/dginst/BitcoinBlockchainTechnology}.
 
-\section{Structure}
+\section{Structure of the thesis}
+In Chapter \ref{chpr:tx} we provide an introduction to transactions in Bitcoin which can help to highlight some aspects that would be recurrent when speaking of confidential transactions. In section \ref{sec::tx_out} we give an overview of Bitcoin transactions, starting from their building block. Then from section \ref{sec::scripts} onwards we describe the basis of the Bitcoin scripting language.
+\\ \ \\
+In Chapter \ref{chpr:priv_fung} the main aspects behind the lack of privacy and fungibility in Bitcoin are discussed. After a brief introduction, section \ref{sec::priv_1} presents some of the tracks that privacy-based solutions are following and should follow in the future; moreover, it briefly describes some of these solutions. Sections \ref{sec::CT_value_priv} and \ref{sec::compatibility} explain that confidential transactions address value privacy only, but show their compatibility with different privacy-based solutions. Then the discussion moves on fungibility; section \ref{sec::weak_fun} explores Bitcoin's lack of fungibility, while section \ref{sec::fun_vs_scala} considers the relation with scalability.
+\\ \ \\
+In Chapter \ref{chpr:crypto_primitives} we explore the cryptographic primitives which underlie the construction of a confidential transaction. In section \ref{sect:commitment_schemes} we provide a general definition and some examples of commitment scheme and we present the security properties it should satisfy. We proceed by defining the class of commitment schemes which succeed in making confidential transactions achieve their purpose: we introduce the additively homomorphic commitment schemes in section \ref{add_homomorphic_commit} and the Pedersen commitment in section \ref{subsec_PC}. In section \ref{sec::ZKPoK} various examples of Zero-Knowledge proofs of knowledge together with their distinctive properties are presented. In section \ref{ring_signatures} ring signatures are introduced; eventually in section \ref{ECDH} the elliptic curve Diffie-Hellman primitive is presented.
+\\ \ \\
+In Chapter \ref{chpr:CTs} we eventually get into confidential transactions. We describe how the cryptographic primitives presented in the chapter above are specialized for their deployment. In particular, sections \ref{sec::tx_am_encr} and its related subsections describe how the amount encryption is achieved through Pedersen commitments and its consequences; section \ref{Homom_encryption_features} explores the features of homomorphic encryption and particularly the consequences on transaction validation in section \ref{commitment_to_0} and the setting of the blinding factors in section \ref{sec::blinding_factors_setting}. Section \ref{sec::ZK_range_pr} describes the first solution enabling the construction of the Zero-Knowledge range proofs, which play the fundamental role of preventing the possibility to exploit homomorphic encryption to ``invisibly" build invalid transactions; sections \ref{example:ZK}, \ref{role_ring_sign_in_CT}, \ref{AOS_ring}, \ref{sec::Borromean_r_sig} describe how particular ring signature schemes can help in providing such proofs in Zero-Knowledge. Section \ref{sender_recv_comm} deals with the details of ECDH; in section \ref{sec::final_sec} we eventually describe benefits and disadvantages.
+\\ \ \\
+Chapter \ref{chpr:conclusions} draws the conclusions to the work.
+
+\section{Notation}
+For what concerns cryptographic notation we specify it when needed (e.g. at the beginning of Chapter \ref{chpr:crypto_primitives} or in the Appendix \ref{app:A}). \\
+For what concerns algorithms, 
+\begin{itemize}
+    \item $||$ refers to byte array concatenation;
+	\item $a \gets b$ refers to the operation of assignment;		\item $z \xleftarrow{\text{\$}} Z$ denotes uniform sampling from the set $Z$ and assignment to $z$;
+	\item $a >>= b$ means $a = a >> b$, namely right-shift bits of $a$ by $b$ and assign the RHS to $a$.
+\end{itemize}

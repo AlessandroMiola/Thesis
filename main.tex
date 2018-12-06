@@ -43,6 +43,30 @@
 \setlength\epigraphwidth{.6\textwidth}
 \newcommand{\source}[1]{\caption*{Source: {#1}} }
 
+\lstdefinestyle{mystyle}{
+	backgroundcolor=\color{gray!30},   
+	commentstyle=\color{green},
+	keywordstyle=\color{blue},
+	numberstyle=\tiny\color{gray},
+	stringstyle=\color{black},
+	basicstyle=\footnotesize,
+	breakatwhitespace=true,
+	texcl=true,
+	%moredelim=[is][\underbar]{_}{_}
+	%breaklines=false,                 
+	%captionpos=b,                    
+	%keepspaces=true,                 
+	%numbers=left,                    
+	%numbersep=5pt,                  
+	%showspaces=false,                
+	%showstringspaces=false,
+	%showtabs=false,                  
+	%tabsize=2
+	%literate={-}{{-\allowbreak}}{1}
+}
+
+\lstset{style=mystyle}
+
 \makeglossaries
 \include{Glossary/Glossary}
 
@@ -95,10 +119,11 @@
 \mainmatter
 
 \include{Chapters/Introduction}
+\include{Chapters/Transactions}
 \include{Chapters/Privacy_and_Fungibility}
 \include{Chapters/Cryptographic_primitives}
 \include{Chapters/Confidential_transactions}
-%\include{Chapters/Conclusions.tex}
+\include{Chapters/Conclusions}
 
 
 

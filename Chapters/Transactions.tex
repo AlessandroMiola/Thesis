@@ -1,2 +1,110 @@
 \chapter{Transactions in Bitcoin}
 \label{chpr:tx}
+The aim of this chapter would be to endow the reader with a first set of basic instruments to follow the incoming description of the \textit{confidential transactions}, which represent the core of this thesis. Indeed, the idea to start with transactions in Bitcoin should not surprise. This chapter can be considered a brief introduction that the informed reader can skip; a deeper inspection of the argument can be found for instance in \cite{BitcoinDev, MasteringBitcoin, PedroFranco}.\footnote{We even suggest the talk available at \url{https://www.youtube.com/watch?v=np-SCwkqVy4} which gives a general yet effective overview for what concerns Scripts.} Furthermore the chapter does not deal with SegWit\footnote{Refer to \url{https://github.com/bitcoin/bips/blob/master/bip-0143.mediawiki} or 
+\url{https://github.com/bitcoin/bips/blob/master/bip-0144.mediawiki}.} as it is out of the scope of this work.
+
+\section{Transaction outputs and other details}
+\label{sec::tx_out}
+Transactions in Bitcoin enable the transfer of value between users of the network. One of the points that deserves to be stressed is that bitcoins only exist as \textit{unspent transaction outputs} (UTXO) on the blockchain. Transactions spend these UTXO and generate new transaction outputs and at the same time transfer their ownership. Thus they configure as a transfer of these outputs which embed value in some way (we can say that bitcoins reside into them).\footnote{Wallets store the private keys needed to spend these outputs, not bitcoins. Indeed, the ideas of the coin entity, rather than the balance of a wallet etc. are only abstractions that can be useful in figuring out the whole picture.} The so called UTXO set, which is the whole collection of the unspent transaction outputs scattered over the blockchain, continuously reduces in size as a consequence of spending the previously unspent outputs and grows as a transaction creates new ones.\\
+Transaction outputs are indivisible chunks of currency (indivisible in the sense that can only be fully spent) which are recorded on the blockchain and are associated to addresses.\footnote{Without entering into the details of their encoding, addresses are basically the result of hashing a public key.} They embed the associated amount (denominated in satoshis\footnote{$1$ satoshi = $10^{-8}$ BTC.}) and the mathematical puzzle, the so called \textit{locking script}, that determines the conditions to spend them in the future.\\
+Up to now we have only spoken of transaction outputs, which indeed are the building blocks of a Bitcoin transaction. However, it is the case that transactions can be visualized as a list of transaction inputs referencing and spending UTXO and generating new transaction outputs.\footnote{Transaction inputs are simply references to previously created outputs and this is the reason why it can be possible to explain transactions avoiding their introduction, from which the title of the section.} A transaction input holds a pointer\footnote{A hash pointer to the previous transaction where the specific UTXO was created.} to the UTXO that it consumes (together with a zero-based index which identifies which UTXO from the previous transaction it references), it embeds an \textit{unlocking script} that satifies the conditions for spending set in the UTXO and thus proves that the funds can be effectively spent. The unlocking script generally holds a digital signature, whose role is to prove the ownership of the referenced output and consequently allow its tranfer. Indeed, the whitepaper \cite{Nakamoto_bitcoin:a} defines a coin as a chain of digital signatures.\\
+A transaction groups one or several inputs to be spent in order to generate the desired outputs. Indeed, given that outputs can be only fully spent, on the one hand transaction inputs could need to reference several UTXO to generate the output, on the other hand the transaction will generally spend back a change. The comparison with banknotes should be immediate. The action of combining UTXO in a proper way is provided by the user's wallet application; it is even the case that each user's wallet try to minimize the number of spent coins (and it is also incentivized to group inputs for an amount which is close to the one of the desired output) by running a coin selection algorithm. This incentive has several reasons: at first, linking outputs or even spending an high-valued output, while creating a small one is detrimental for privacy; then, because fees are paid based on transaction size as we will see in a while. \\
+Moreover, it should be noticed that output amounts are not encrypted, but in the clear and this marks a crucial difference with respect to what will come later with \textit{confidential transactions}.\\ 
+Then, transactions are collected in blocks by some special nodes of the network which are called \textit{miners}. Miners compete in a hash-based Proof-of-Work contest which determines who will add the next block of transactions to the longer chain of blocks. Basically, miners do work over each block header; the last field of each block header is represented by a nonce. Mining is a race to find the proper nonce that makes the hash of the block start with a target number of zeroes (for a more detailed explanation about mining we refer to \cite{MasteringBitcoin}). The winner of the contest (the first one that finds the solution and sends the proof of his work) is rewarded with the issuance of new bitcoins plus the fees of each transaction included in the block. The transaction which rewards the winning miner is the so called \textit{coinbase transaction}; it is the first transaction in each block and it breaks the logic explained above because it does not consume UTXO, but instead has a special input called \textit{coinbase}.\\
+Fees are part of the compensation miners receive. They are computed based on the size of the transaction in kilobytes and for each transaction they are basically the difference between sum of inputs and outputs.\\
+The last aspect we would like to mention in this brief introduction is transaction validation as it too highlights a significant difference with respect to what will come later with confidential transactions. When a node broadcasts a transaction, all the other nodes will verify its validity; they will check that each referenced output is effectively unspent, that the sum of the inputs exceeds the sum of the outputs and eventually check whether unlocking and locking scripts are consistent.\\
+To conclude the section we think that it can be useful to describe an example of the workflow the transaction creator (let's say Alice) uses to send a transaction to the recipient (let's say Bob) and then what the recipient does to spend the output of this transaction.\footnote{Sender and recipient are some sorts of abstractions too, but well serve the purpose of supporting the comprehension.} Though the explanation of some of the possible constructions of locking and unlocking scripts (which in turn allow to define different types of transactions) is postponed to the section that covers the scripting language, we consider here the standard case of Alice paying to an address owned by Bob (the common Pay-To-Public-Key-Hash (P2PKH) transaction type). Alice creates a transaction output whose locking script allows whoever will be able to provide knowledge of the private key corresponding to Bob's address (thus hopefully Bob) to spend the output later. Then she broadcasts the transaction and the nodes of the network label the output as a UTXO. When Bob spends this UTXO, he creates a transaction input referencing the considered output and will provide the unlocking script satisfying the conditions for spending. After broadcasting, when it comes to the network validating the transaction created by Bob, nodes evaluate the unlocking script provided by Bob and the retrieved locking script embedded in the UTXO previously created by Alice. 
+
+\section{Bitcoin scripting language}
+\label{sec::scripts}
+As we have already observed, in \cite{Nakamoto_bitcoin:a} a coin is defined as a chain of digital signatures, which allows the transfer from one user to another. It could be the case that on the one hand Bitcoin was initially designed to spend transaction outputs to public keys only, in such a case a digital signature provided with the private key associated to the public key in favour of which the referenced transaction output was spent would be enough to prove ownership and that on the other hand the scripting functionality was added together with the support for Bitcoin addresses. Indeed, there's no clue about scripts in the entire whitepaper although the first code release had already added the scripting functionality.\\
+Restricting transactions just to the simple form described above would have not endowed Bitcoin transactions with the flexibility and the versatility that the scripting language effectively provides.\\
+The Bitcoin scripting language, also called Script, is a stack-based programming language; data are pushed on top of a stack, its commands (the op codes) operate with these data (and eventually pop them). Moreover, it is not Turing-complete by design, namely scripts have limited complexity (e.g. no loops are admissible) and finite and predictable execution time. Indeed, this prevents giving the power to arbitrary users of the network to submit scripts that may create infinite loops, bringing nodes evaluating these to stall. Then, it is based on stateless verification, meaning that all the information needed to execute a script is contained in the script itself.\\
+A script is represented by a list of data and commands (op codes) which are sequentially pushed on top of the stack and run and which implement a contract. Two only outputs are possible, namely true or false; if at the end of the execution the stack is non-empty and the top element is non-zero it returns true, false otherwise. The locking and unlocking scripts placed on a UTXO are written in this scripting language; when a transaction is broadcast, each node of the network will verify whether the transaction is valid through the execution of the unlocking and the locking script one at-a-time.\footnote{Before turning to separate execution of the scripts through a shared stack, code implementation concatenated unlocking and locking scripts and ran them together (as it were one only). This was changed because it was a bug which gave the possibility to spend anyone's coins.} \\
+Eventually, it could be the case that in the near future optimizations to the scripting language will take place. Indeed, the scripts execute on all nodes, but this is not really consistent with each node's intention to validate transactions; verification of the output would be enough.\\
+Next section is devoted to the description of some of the most common script templates, which allow to implement the different contracts (i.e. the different types of transactions) that Bitcoin provides. 
+
+\subsection{Bitcoin script templates}
+\label{sec::script_templ}
+\begin{itemize}[leftmargin=*]
+\item Pay-to-Public-Key (P2PK): it represents the very first transaction type. Its locking script allows to spend the output by providing proof of knowledge of the private key associated to the given public-key (i.e. providing a digital signature where the message signed is a hash of a specific subset of the data in the transaction).\footnote{Indeed, the locking script was first known as scriptPubKey. The reason is exactly that initially it contained the public key of the receiver. The same for the unlocking script: known as scriptSig as it contained a digital signature.} P2PK was soon abandoned as publishing a public key on the blockchain is not quantum resistant. Here unlocking and locking scripts are reported.
+\begin{lstlisting}[frame=single]
+scriptSig: <sig>
+scriptPubKey: <pubKey> OP_CHECKSIG
+\end{lstlisting}
+How the validation proceeds is described in Table \ref{table:P2PK}. Consider a situation like the one of the simple example of section \ref{sec::tx_out}, with Alice and Bob involved in the transaction.\footnote{Though there a P2PKH transaction was considered.} The unlocking script provided by Bob would be executed first and will add data on top of the stack; then each node will retrieve the locking script provided by Alice and run it.
+\begin{center}
+	\noindent
+	\makebox[\textwidth]{
+		\begin{tabular}{| p{5cm} | p{5cm} | p{5cm} |}
+			\hline
+			Stack & Command & Description \\
+			\hline			
+			& $<$sig$>$ & \\
+			\hline
+            $<$sig$>$ & $<$pubKey$>$ & The scriptSig is pushed on top of the stack. \\
+			\hline 
+			$<$sig$>$ $<$pubKey$>$ & OP\_CHECKSIG & The public key is pushed on top of the stack. \\
+			\hline 
+			1 &  & The op code OP\_CHECKSIG requires two inputs. It checks the consistency of the signature with the associated public key; if valid, it pushes true. \\
+			\hline 
+		\end{tabular}
+	}\captionof{table}{Verification procedure for a P2PK transaction.}
+	\label{table:P2PK}
+\end{center}
+\item Pay-to-Public-Key-Hash (P2PKH): it is the most common transaction type. Similar to the previous one, but the locking script allows spending the output by providing proof of knowledge of the private key associated to the given address. Publishing the address rather than the public key no longer suffers from not being quantum resistant. Here unlocking and locking script are reported.
+\begin{lstlisting}[frame=single]
+scriptSig: <sig> <pubKey>
+scriptPubKey: OP_DUP OP_HASH160 <pubKeyHash> OP_EQUALVERIFY 
+              OP_CHECKSIG
+\end{lstlisting}
+Here's the validation procedure.
+\begin{center}
+	\noindent
+	\makebox[\textwidth]{
+		\begin{tabular}{| p{5cm} | p{5cm} | p{5cm} |}
+			\hline
+			Stack & Command & Description \\
+			\hline			
+			& $<$sig$>$ $<$pubKey$>$& \\
+			\hline
+            $<$sig$>$ $<$pubKey$>$ & OP\_DUP & The  scriptSig  is  pushed on top of the stack. \\
+			\hline 
+			$<$sig$>$ $<$pubKey$>$ $<$pubKey$>$& OP\_HASH160 & OP\_DUP takes the element on top of the stack and duplicates it.  \\
+			\hline 
+			$<$sig$>$ $<$pubKey$>$ $<$pubKeyHash$>$& $<$pubKeyHash$>$ & OP\_HASH160 takes the element on top of the stack and applies to it SHA-256 and RIPEMD160 in sequence.\\
+			\hline
+			$<$sig$>$ $<$pubKey$>$ $<$pubKeyHash$>$ $<$pubKeyHash$>$& OP\_EQUALVERIFY & The address $<$pubKeyHash$>$ is pushed on top of the stack. \\
+			\hline
+			$<$sig$>$ $<$pubKey$>$ & OP\_CHECKSIG & The op code OP\_EQUALVERIFY takes the two elements on top of the stack and checks if they are equal. If not, the validation fails. \\
+			\hline
+			1 &  & The op code OP\_CHECKSIG requires two inputs. It checks the consistency of the signature with the associated public key; if valid, it pushes true. \\
+			\hline 
+		\end{tabular}
+	}\captionof{table}{Verification procedure for a P2PKH transaction.}
+	\label{table:P2PKH}
+\end{center}
+\end{itemize}
+\noindent
+From now on, we will no more describe the verification procedure step by step as the logic should be clear.\\
+It is worth noticing that with P2PKH the potential of the scripting language (with respect to the pure chain of digital signatures) begins to emerge; but it is then with \textit{multi-signature} transactions that it is truly evident.
+\begin{itemize}[leftmargin=*]
+\item Multisignature (or \textit{multisig}) scripts: called \textit{m-of-n}, are such that $n$ public keys are recorded in the locking script and require at least signatures for $m$ of these public keys ($m \leq n$). These are limited to at most 15 public keys. Various use-cases are related to multi-signature transactions. Commonly these are used by multiple parties possessing the private keys necessary to unlock the funds; for instance, a wife and a husband could choose to lock funds in a 2-of-2 multisignature output that would prevent any of the two to unlock the funds without the other's approval. Then, multisig can be even useful for a single user to build a two-factor authentication wallet, where private keys are kept on different devices (which would make theft harder) or to protect against fortuitous loss of one of the keys (for instance with a 2-of-3 multisig). Here unlocking and locking scripts of a (bare) multisig are reported.
+\begin{lstlisting}[frame=single]
+scriptSig: 0 <sig1> <sig2> ... <sigm>
+scriptPubKey: m <pubKey1> <pubKey2> ... <pubKeyn> n
+              OP_CHECKMULTISIG
+\end{lstlisting}
+The above implementation of the scripts has some limits.\footnote{The starting 0 in the unlocking script is due to a bug in the OP\_CHECKMULTISIG which has become part of the consensus rules.}
+At first, the size increases linearly with the number of public keys and signatures. Then, it requires the signatures to be ordered with respect to the public keys, but especially it is beneficial for the receiver (who selects the multisig policy) and expensive for the sender, which is kind of odd. Indeed, the sender has to provide a locking script including all of the addresses, the number of valid signatures and public keys required and would eventually pay high fees being the script quite big in size; moreover, whatever policy the receiver choices the sender does not need to know it, quite the opposite. This would be detrimental to privacy. The solution to these issues came with P2SH.
+\item Pay-to-Script-Hash (P2SH): being the receiver in charge of the spending policy, he should pay for the increased script size. The way this burden is shifted on receiver side is by letting the locking script only hold the hash of the script used to spend a transaction (the \textit{reedem script}).
+\begin{lstlisting}[frame=single]
+scriptSig: 0 <sig1> <sig2> ... <sigm>
+Redeem script : m <pubKey1> <pubKey2> ... <pubKeyn> n 
+                OP_CHECKMULTISIG 
+scriptPubKey: OP_HASH160 <20 bytes hash of the redeem script> 
+              OP_EQUAL
+\end{lstlisting}
+The bigger redeem script has to be provided now by the sender, the locking script is, instead, much less big and only holds the hash of the redeem script. For what concerns verification, it will be checked whether the redeem script hashes to the same value specified in the locking script, then the redeem script would be processed against the unlocking script.
+\end{itemize}
+These are only some of the examples showing how far script flexibility can be pushed. Scripts are also useful to encode more complicated contracts.
