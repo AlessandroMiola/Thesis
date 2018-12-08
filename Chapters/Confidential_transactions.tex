@@ -132,16 +132,16 @@ The complete signature algorithm is the following. Let $m$ be the message to be 
 	\begin{algorithmic}[1]
 		\Procedure{AOS-sign}{$m, q_{i^{*}}, Q_i$: $0 \leq i \leq r-1$}
 		\State \textbf{Initialization}:
-		\State $k_{i^{*}}$ $\xleftarrow{\text{\$}} \{1, ..., n - 1\}$
+		\State $k_{i^{*}}$ $\xleftarrow{\text{\$}} \{1, ..., n - 1\}$    \Comment{$n$: elliptic curve group order}
 		\State $K_{i^{*}} \gets k_{i^{*}}G$
 		\State \textbf{Forward sequence}:
 		\For {$i \gets i^{*}+1,\dots,r-1,0,\dots,i^{*}-1$}
 		\State $e_i \gets hash(K_{i-1}||m||i)$
-		\State $s_i\xleftarrow{\text{\$}} \{1, ..., n - 1\}$
+		\State $s_i\xleftarrow{\text{\$}} \{1, ..., n - 1\}$   
 		\State $K_i \gets s_iG - e_iQ_i$
 		\EndFor
 		\State \textbf{Forming the ring}:
-		\State $e_{i^{*}} \gets hash(K_{i{*}-1}||m||i^{*})$
+		\State $e_{i^{*}} \gets hash(K_{{i{*}}-1}||m||i^{*})$
 		\State $s_{i^{*}} \gets k_{i^{*}} + e_{i^{*}}q_{i^{*}}$
 		\State \textbf{return} ($e_0, s_0, \dots, s_{r-1}$)$\equalscolon \sigma$
 		\EndProcedure
@@ -160,7 +160,7 @@ Instead, the verification algorithm is the following. It takes as input the mess
 		\State $K_i \gets s_iG - e_iQ_i$
 		\State $e_{i+1\%r} \gets hash(K_i||m||i+1\%r)$
 		\EndFor
-		\If {$e_0 = 0$ or $e_0 \geq n$}
+		\If {$e_0 = 0$ or $e_0 \geq n$} \Comment{$n$: elliptic curve group order}
 		\State \textbf{return} ``false"
 		\EndIf
 		\If {$e_0 = \sigma[0]$}
@@ -225,15 +225,15 @@ Moreover, let $m$ be the message to be signed and $\{q_i\}_{i=0,\dots,r-1}$ be t
 		\Procedure{Borromean-sign}{$m, q_i: 0 \leq i \leq r-1, Q_{i,j}: 0 \leq i \leq r-1$, $0 \leq j \leq m_i-1$}
 		\State $M \gets hash(m||Q_{0,0}||Q_{1,0}||\dots||Q_{r-1,m_{r-1}-1})$
 		\For {$i \gets 0,\dots,r-1$}
-		\State $k_i$ $\xleftarrow{\text{\$}} \{1, ..., n - 1\}$
-		\State $j_i^{*}$ $\xleftarrow{\text{\$}} \{0, ..., m_i - 1\}$
-		\State $R_{i,j_i^{*}} \gets k_iG$
-		\If {$((j_i^{*}+1)$ \% $m_i )\neq 0$}
-		\State $e_{i,j_i^{*}} \gets int(hash(M||R_{i,j_i^{*}}||i||j_i^{*}))$
-		\State assert $e_{i,j_i^{*}} \neq 0$ and $e_{i,j_i^{*}} < n$
-		\For {$j \gets (j_i^{*}+1)$ \% $m_i,\dots,m_i-1$}
+		\State $k_i$ $\xleftarrow{\text{\$}} \{1, ..., n - 1\}$ \Comment{$n$: elliptic curve group order}
+		\State $j_{i^{*}}$ $\xleftarrow{\text{\$}} \{0, ..., m_i - 1\}$
+		\State $R_{i,j_{i^{*}}} \gets k_iG$
+		\If {$((j_{i^{*}}+1)$ \% $m_i )\neq 0$}
+		%\State $e_{i,j_{i^{*}}} \gets int(hash(M||R_{i,j_{i^{*}}}||i||j_{i^{*}}))$
+		%\State assert $e_{i,j_{i^{*}}} \neq 0$ and $e_{i,j_{i^{*}}} < n$
+		\For {$j \gets (j_{i^{*}}+1)$ \% $m_i,\dots,m_i-1$}
 		\State $s_{i,j} \xleftarrow{\text{\$}} \{1, ..., n - 1\}$
-		\State $e_{i,j} \gets int(hash(M||R_{i,j}||i||j))$
+		\State $e_{i,j} \gets int(hash(M||R_{i,j-1}||i||j))$
 		\State assert $e_{i,j} \neq 0$ and $e_{i,j} < n$
 		\State $R_{i,j} \gets s_{i,j}G - e_{i,j}Q_{i,j}$
 		\EndFor
@@ -243,12 +243,12 @@ Moreover, let $m$ be the message to be signed and $\{q_i\}_{i=0,\dots,r-1}$ be t
 		\For {$i \gets 0,\dots,r-1$}
 		\State $e_{i,0} \gets int(hash(M||e_0||i||0))$
 		\State assert $e_{i,0} \neq 0$ and $e_{i,0} < n$
-		\For {$j \gets 1,\dots,j_i^{*}$}
+		\For {$j \gets 1,\dots,j_{i^{*}}$}
 		\State $s_{i,j-1} \xleftarrow{\text{\$}} \{1, ..., n - 1\}$
 		\State $e_{i,j} \gets int(hash(M|| s_{i,j-1}G - e_{i,j-1}Q_{i,j-1}||i||j))$
 		\State assert $e_{i,j} \neq 0$ and $e_{i,j} < n$
 		\EndFor
-		\State $s_{i,j_i^{*}} \gets k_i + q_ie_{i,j_i^{*}}$
+		\State $s_{i,j_{i^{*}}} \gets k_i + q_ie_{i,j_{i^{*}}}$
 		\EndFor
 		\State \textbf{return} ($e_0, s_{i,j}: 0 \leq i \leq r-1$, $0 \leq j \leq m_i-1$)$\equalscolon \sigma$
 		\EndProcedure
@@ -291,7 +291,7 @@ First of all, observe that verifying $r$ AOS ring signatures requires $r\cdot N$
 		\State $M \gets hash(m||Q_{0,0}||Q_{1,0}||\dots||Q_{r-1,m_{r-1}-1})$
 		\For {$i \gets 0,\dots,r-1$}
 		\State $e_{i,0} \gets int(hash(M||e_0||i||0))$
-		\If {$e_{i,0} = 0$ or $e_{i,0} \geq n$}
+		\If {$e_{i,0} = 0$ or $e_{i,0} \geq n$} \Comment{$n$: elliptic curve group order}
 		\State \textbf{return} ``false"
 		\EndIf
 		\For {$j \gets 0,\dots,m_i-1$}
@@ -411,7 +411,7 @@ However, what effectively makes confidential transactions (at least in the form 
 Moreover, confidential transactions are actually implemented in the Elements sidechain.\footnote{See \url{https://github.com/ElementsProject/elements}.} De facto they introduce a different transaction format with respect to the one presented in Chapter \ref{chpr:tx}. Each output includes Pedersen commitment to the output amount, associated range proof, ECDH public key of the sender and locking script. Despite not having presented the details, in section \ref{sender_recv_comm} it was mentioned that they even introduce a new type of address (longer than a standard one) called \textit{confidential transaction address} which includes the ECDH public key of the receiver. The locking script includes the confidential transaction address. \\
 A very powerful comprehensive schema can be seen in Figure \ref{fig:ct_schema} and is taken from \cite{GibsonCT}. It represents a confidential transaction with two inputs and two outputs.
 \begin{center}
-\includegraphics[scale = 0.7]{Images/CT_schema.png}%
+\includegraphics[scale = 0.8]{Images/CT_schema.png}%
 \captionof{figure}{Confidential transaction format}
 \source{\cite{GibsonCT}}
 \label{fig:ct_schema}
