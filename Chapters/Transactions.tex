@@ -105,6 +105,6 @@ Redeem script : m <pubKey1> <pubKey2> ... <pubKeyn> n
 scriptPubKey: OP_HASH160 <20 bytes hash of the redeem script> 
               OP_EQUAL
 \end{lstlisting}
-The bigger redeem script has to be provided now by the sender, the locking script is, instead, much less big and only holds the hash of the redeem script. For what concerns verification, it will be checked whether the redeem script hashes to the same value specified in the locking script, then the redeem script would be processed against the unlocking script.
+The bigger redeem script has to be provided now by the receiver, the locking script is, instead, much less big and only holds the hash of the redeem script. For what concerns verification, it will be checked whether the redeem script hashes to the same value specified in the locking script, then the redeem script would be processed against the unlocking script.
 \end{itemize}
 These are only some of the examples showing how far script flexibility can be pushed. Scripts are also useful to encode more complicated contracts.
